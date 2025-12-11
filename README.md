@@ -1,26 +1,78 @@
-# CodeWizard
+# Oracle Code
 
-**CodeWizard** is an AI-powered development swarm, evolved from Oracle Code.
+**Oracle Code** is an AI-powered development environment with agentic filesystem capabilities, theory of mind context tracking, and multi-agent swarm collaboration.
 
-## Philosophy
-**"We are collaborators."**
-CodeWizard uses an **Agentic File System (AFS)** and a **Theory of Mind** approach to collaborate with you.
+A fork of [OpenCode](https://github.com/sst/opencode) with enhanced agent orchestration features.
 
-- **Swarm Intelligence:** specialized agents (Planner, Coder, Critic) working together.
-- **Context-Aware:** Uses `.context/` to maintain long-term memory and plans.
+## Features
+
+- **Agentic File System (AFS)** - Intelligent filesystem operations with context awareness
+- **Theory of Mind (ToM)** - Intent tracking and reasoning about user goals
+- **Swarm Collaboration** - Multiple specialized agents working in concert
+- **Context Memory** - Long-term memory via `.context/` directory
 
 ## Quick Start
 
-1. **Install Bun** (if not installed): https://bun.sh
-2. **Run the Wizard:**
-   ```bash
-   ./codewizard
-   ```
+```bash
+# Install dependencies
+bun install
+
+# Run Oracle Code
+bun run --cwd packages/oracle-code src/index.ts
+
+# Or use the wrapper script
+./ocode
+```
+
+## CLI
+
+```bash
+ocode              # Launch TUI
+ocode run          # Run in headless mode
+ocode --help       # Show all commands
+```
 
 ## Agent Swarm
-- **@general**: The coordinator.
-- **@planner**: Strategy and roadmap.
-- **@coder**: Implementation.
-- **@critic**: Review and quality.
 
-See `AGENTS.md` and `.context/memory/SWARM_SPEC.md` for details.
+Oracle Code supports multi-agent collaboration:
+
+- **@general** - Coordinator agent
+- **@planner** - Strategy and architecture
+- **@coder** - Implementation
+- **@critic** - Review and quality assurance
+
+## Configuration
+
+Configuration lives in `.oracle-code/oracle-code.jsonc`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["STYLE_GUIDE.md"],
+  "provider": {
+    "anthropic": {}
+  }
+}
+```
+
+## Project Structure
+
+```
+packages/
+  oracle-code/     # Core CLI
+  sdk/             # TypeScript SDK
+  plugin/          # Plugin system
+  script/          # Build scripts
+  util/            # Shared utilities
+```
+
+## Documentation
+
+- [AGENTS.md](./AGENTS.md) - Agent system documentation
+- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contribution guide
+- [.context/memory/AFS_SPEC.md](./.context/memory/AFS_SPEC.md) - AFS specification
+- [.context/memory/SWARM_SPEC.md](./.context/memory/SWARM_SPEC.md) - Swarm specification
+
+## License
+
+MIT
