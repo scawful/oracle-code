@@ -1,4 +1,4 @@
-import { Resource } from "@opencode-ai/console-resource"
+import { Resource } from "@oracle-code/console-resource"
 import { RateLimitError } from "./error"
 import { logger } from "./logger"
 

@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun"
-import { createOpencode } from "@opencode-ai/sdk"
-import { Script } from "@opencode-ai/script"
+import { createOpencode } from "@oracle-code/sdk"
+import { Script } from "@oracle-code/script"
 
 const notes = [] as string[]
 
 console.log("=== publishing ===\n")
 
 if (!Script.preview) {
-  const previous = await fetch("https://registry.npmjs.org/opencode-ai/latest")
+  const previous = await fetch("https://registry.npmjs.org/oracle-code-ai/latest")
     .then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.json()
@@ -88,7 +88,7 @@ if (!Script.preview) {
     "opencode-agent[bot]",
   ]
   const compare =
-    await $`gh api "/repos/sst/opencode/compare/v${previous}...HEAD" --jq '.commits[] | {login: .author.login, message: .commit.message}'`.text()
+    await $`gh api "/repos/scawful/oracle-code/compare/v${previous}...HEAD" --jq '.commits[] | {login: .author.login, message: .commit.message}'`.text()
   const contributors = new Map<string, string[]>()
 
   for (const line of compare.split("\n").filter(Boolean)) {

@@ -1,0 +1,16 @@
+List files in the Agentic File System (AFS) directories.
+
+The AFS is a structured context directory (.context/) with policy-controlled subdirectories:
+- memory (read_only): Long-term specs and architectural decisions
+- knowledge (read_only): Immutable reference materials
+- tools (executable): Scripts and automation tools
+- scratchpad (writable): Transient working memory and plans
+- history (read_only): Archived sessions
+
+Use this tool to explore what context is available before reading specific files.
+
+Parameters:
+- directory: Optional. Specific directory to list (memory, knowledge, tools, scratchpad, history). Omit to list all directories.
+- recursive: Optional. Whether to list files recursively within directories. Default: false.
+
+Returns file names, sizes, modification times, and the directory's access policy.

@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-ai/ui",
+  "name": "@oracle-code/ui",
   "version": "1.0.143",
   "type": "module",
   "exports": {
@@ -31,8 +31,8 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
-    "@opencode-ai/sdk": "workspace:*",
-    "@opencode-ai/util": "workspace:*",
+    "@oracle-code/sdk": "workspace:*",
+    "@oracle-code/util": "workspace:*",
     "@pierre/precision-diffs": "catalog:",
     "@shikijs/transformers": "3.9.2",
     "@solidjs/meta": "catalog:",

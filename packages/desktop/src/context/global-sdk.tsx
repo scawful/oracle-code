@@ -1,5 +1,5 @@
-import { createOpencodeClient, type Event } from "@opencode-ai/sdk/v2/client"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createOracleCodeClient, type Event } from "@oracle-code/sdk/v2/client"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { onCleanup } from "solid-js"
 
@@ -7,7 +7,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
   name: "GlobalSDK",
   init: (props: { url: string }) => {
     const abort = new AbortController()
-    const sdk = createOpencodeClient({
+    const sdk = createOracleCodeClient({
       baseUrl: props.url,
       signal: abort.signal,
     })

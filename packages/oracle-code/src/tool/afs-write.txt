@@ -1,0 +1,20 @@
+Write a file to the AFS scratchpad directory.
+
+The Agentic File System enforces access policies:
+- memory/: read_only - CANNOT write
+- knowledge/: read_only - CANNOT write
+- tools/: executable - CANNOT write (use standard tools)
+- scratchpad/: writable - CAN write
+- history/: read_only - CANNOT write
+
+This tool ONLY allows writing to the scratchpad/ directory, which is designed for:
+- Planning documents (plan.md)
+- Current task notes (current_task.md)
+- Reasoning traces and debug logs
+- Temporary working files
+
+Parameters:
+- filePath: Path relative to .context/scratchpad/ (e.g., "plan.md" or "notes/research.md")
+- content: The full content to write to the file
+
+For updating the plan specifically, consider using the plan_write tool instead.

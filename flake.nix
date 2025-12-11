@@ -1,5 +1,5 @@
 {
-  description = "OpenCode development flake";
+  description = "Oracle Code development flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -20,7 +20,7 @@
       lib = nixpkgs.lib;
       forEachSystem = lib.genAttrs systems;
       pkgsFor = system: nixpkgs.legacyPackages.${system};
-      packageJson = builtins.fromJSON (builtins.readFile ./packages/opencode/package.json);
+      packageJson = builtins.fromJSON (builtins.readFile ./packages/oracle-code/package.json);
       bunTarget = {
         "aarch64-linux" = "bun-linux-arm64";
         "x86_64-linux" = "bun-linux-x64";
@@ -66,7 +66,7 @@
           mkNodeModules = pkgs.callPackage ./nix/node-modules.nix {
             hash = nodeModulesHash;
           };
-          mkPackage = pkgs.callPackage ./nix/opencode.nix { };
+          mkPackage = pkgs.callPackage ./nix/oracle-code.nix { };
         in
         {
           default = mkPackage {
@@ -86,20 +86,20 @@
           pkgs = pkgsFor system;
         in
         {
-          opencode-dev = {
+          oracle-code-dev = {
             type = "app";
             meta = {
-              description = "Nix devshell shell for OpenCode";
+              description = "Nix devshell shell for Oracle Code";
               runtimeInputs = [ pkgs.bun ];
             };
             program = "${
               pkgs.writeShellApplication {
-                name = "opencode-dev";
+                name = "oracle-code-dev";
                 text = ''
                   exec bun run dev "$@"
                 '';
               }
-            }/bin/opencode-dev";
+            }/bin/oracle-code-dev";
           };
         }
       );

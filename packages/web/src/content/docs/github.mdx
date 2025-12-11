@@ -1,17 +1,17 @@
 ---
 title: GitHub
-description: Use opencode in GitHub issues and pull-requests.
+description: Use oracle-code in GitHub issues and pull-requests.
 ---
 
-opencode integrates with your GitHub workflow. Mention `/opencode` or `/oc` in your comment, and opencode will execute tasks within your GitHub Actions runner.
+oracle-code integrates with your GitHub workflow. Mention `/opencode` or `/oc` in your comment, and oracle-code will execute tasks within your GitHub Actions runner.
 
 ---
 
 ## Features
 
-- **Triage issues**: Ask opencode to look into an issue and explain it to you.
-- **Fix and implement**: Ask opencode to fix an issue or implement a feature. And it will work in a new branch and submits a PR with all the changes.
-- **Secure**: opencode runs inside your GitHub's runners.
+- **Triage issues**: Ask oracle-code to look into an issue and explain it to you.
+- **Fix and implement**: Ask oracle-code to fix an issue or implement a feature. And it will work in a new branch and submits a PR with all the changes.
+- **Secure**: oracle-code runs inside your GitHub's runners.
 
 ---
 
@@ -20,7 +20,7 @@ opencode integrates with your GitHub workflow. Mention `/opencode` or `/oc` in y
 Run the following command in a project that is in a GitHub repo:
 
 ```bash
-opencode github install
+oracle-code github install
 ```
 
 This will walk you through installing the GitHub app, creating the workflow, and setting up secrets.
@@ -33,14 +33,14 @@ Or you can set it up manually.
 
 1. **Install the GitHub app**
 
-   Head over to [**github.com/apps/opencode-agent**](https://github.com/apps/opencode-agent). Make sure it's installed on the target repository.
+   Head over to [**github.com/apps/oracle-code-agent**](https://github.com/apps/oracle-code-agent). Make sure it's installed on the target repository.
 
 2. **Add the workflow**
 
-   Add the following workflow file to `.github/workflows/opencode.yml` in your repo. Make sure to set the appropriate `model` and required API keys in `env`.
+   Add the following workflow file to `.github/workflows/oracle-code.yml` in your repo. Make sure to set the appropriate `model` and required API keys in `env`.
 
-   ```yml title=".github/workflows/opencode.yml" {24,26}
-   name: opencode
+   ```yml title=".github/workflows/oracle-code.yml" {24,26}
+   name: oracle-code
 
    on:
      issue_comment:
@@ -49,7 +49,7 @@ Or you can set it up manually.
        types: [created]
 
    jobs:
-     opencode:
+     oracle-code:
        if: |
          contains(github.event.comment.body, '/oc') ||
          contains(github.event.comment.body, '/opencode')
@@ -62,8 +62,8 @@ Or you can set it up manually.
            with:
              fetch-depth: 1
 
-         - name: Run opencode
-           uses: sst/opencode/github@latest
+         - name: Run oracle-code
+           uses: sst/oracle-code/github@latest
            env:
              ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
            with:
@@ -80,12 +80,12 @@ Or you can set it up manually.
 
 ## Configuration
 
-- `model`: The model to use with opencode. Takes the format of `provider/model`. This is **required**.
-- `share`: Whether to share the opencode session. Defaults to **true** for public repositories.
-- `prompt`: Optional custom prompt to override the default behavior. Use this to customize how opencode processes requests.
-- `token`: Optional GitHub access token for performing operations such as creating comments, committing changes, and opening pull requests. By default, opencode uses the installation access token from the opencode GitHub App, so commits, comments, and pull requests appear as coming from the app.
+- `model`: The model to use with oracle-code. Takes the format of `provider/model`. This is **required**.
+- `share`: Whether to share the oracle-code session. Defaults to **true** for public repositories.
+- `prompt`: Optional custom prompt to override the default behavior. Use this to customize how oracle-code processes requests.
+- `token`: Optional GitHub access token for performing operations such as creating comments, committing changes, and opening pull requests. By default, oracle-code uses the installation access token from the oracle-code GitHub App, so commits, comments, and pull requests appear as coming from the app.
 
-  Alternatively, you can use the GitHub Action runner's [built-in `GITHUB_TOKEN`](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token) without installing the opencode GitHub App. Just make sure to grant the required permissions in your workflow:
+  Alternatively, you can use the GitHub Action runner's [built-in `GITHUB_TOKEN`](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token) without installing the oracle-code GitHub App. Just make sure to grant the required permissions in your workflow:
 
   ```yaml
   permissions:
@@ -101,10 +101,10 @@ Or you can set it up manually.
 
 ## Custom prompts
 
-Override the default prompt to customize opencode's behavior for your workflow.
+Override the default prompt to customize oracle-code's behavior for your workflow.
 
-```yaml title=".github/workflows/opencode.yml"
-- uses: sst/opencode/github@latest
+```yaml title=".github/workflows/oracle-code.yml"
+- uses: sst/oracle-code/github@latest
   with:
     model: anthropic/claude-sonnet-4-5
     prompt: |
@@ -120,27 +120,27 @@ This is useful for enforcing specific review criteria, coding standards, or focu
 
 ## Examples
 
-Here are some examples of how you can use opencode in GitHub.
+Here are some examples of how you can use oracle-code in GitHub.
 
 - **Explain an issue**
 
   Add this comment in a GitHub issue.
 
   ```
-  /opencode explain this issue
+  /oracle-code explain this issue
   ```
 
-  opencode will read the entire thread, including all comments, and reply with a clear explanation.
+  oracle-code will read the entire thread, including all comments, and reply with a clear explanation.
 
 - **Fix an issue**
 
   In a GitHub issue, say:
 
   ```
-  /opencode fix this
+  /oracle-code fix this
   ```
 
-  And opencode will create a new branch, implement the changes, and open a PR with the changes.
+  And oracle-code will create a new branch, implement the changes, and open a PR with the changes.
 
 - **Review PRs and make changes**
 
@@ -150,18 +150,18 @@ Here are some examples of how you can use opencode in GitHub.
   Delete the attachment from S3 when the note is removed /oc
   ```
 
-  opencode will implement the requested change and commit it to the same PR.
+  oracle-code will implement the requested change and commit it to the same PR.
 
 - **Review specific code lines**
 
-  Leave a comment directly on code lines in the PR's "Files" tab. opencode automatically detects the file, line numbers, and diff context to provide precise responses.
+  Leave a comment directly on code lines in the PR's "Files" tab. oracle-code automatically detects the file, line numbers, and diff context to provide precise responses.
 
   ```
   [Comment on specific lines in Files tab]
   /oc add error handling here
   ```
 
-  When commenting on specific lines, opencode receives:
+  When commenting on specific lines, oracle-code receives:
   - The exact file being reviewed
   - The specific lines of code
   - The surrounding diff context

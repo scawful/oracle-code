@@ -1,15 +1,15 @@
 ---
 title: Intro
-description: Get started with OpenCode.
+description: Get started with Oracle Code.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components"
 import config from "../../../config.mjs"
 export const console = config.console
 
-[**OpenCode**](/) is an open source AI coding agent. It's available as a terminal-based interface, desktop app, or IDE extension.
+[**Oracle Code**](/) is an open source AI coding agent. It's available as a terminal-based interface, desktop app, or IDE extension.
 
-![OpenCode TUI with the opencode theme](../../assets/lander/screenshot.png)
+![Oracle Code TUI with the oracle-code theme](../../assets/lander/screenshot.png)
 
 Let's get started.
 
@@ -17,7 +17,7 @@ Let's get started.
 
 #### Prerequisites
 
-To use OpenCode in your terminal, you'll need:
+To use Oracle Code in your terminal, you'll need:
 
 1. A modern terminal emulator like:
    - [WezTerm](https://wezterm.org), cross-platform
@@ -31,7 +31,7 @@ To use OpenCode in your terminal, you'll need:
 
 ## Install
 
-The easiest way to install OpenCode is through the install script.
+The easiest way to install Oracle Code is through the install script.
 
 ```bash
 curl -fsSL https://opencode.ai/install | bash
@@ -45,28 +45,28 @@ You can also install it with the following commands:
 
       <TabItem label="npm">
       ```bash
-      npm install -g opencode-ai
+      npm install -g oracle-code
       ```
 
           </TabItem>
 
         <TabItem label="Bun">
         ```bash
-        bun install -g opencode-ai
+        bun install -g oracle-code
         ```
 
           </TabItem>
 
         <TabItem label="pnpm">
         ```bash
-        pnpm install -g opencode-ai
+        pnpm install -g oracle-code
         ```
 
           </TabItem>
 
         <TabItem label="Yarn">
         ```bash
-        yarn global add opencode-ai
+        yarn global add oracle-code
         ```
 
       </TabItem>
@@ -76,13 +76,13 @@ You can also install it with the following commands:
 - **Using Homebrew on macOS and Linux**
 
   ```bash
-  brew install opencode
+  brew install oracle-code
   ```
 
 - **Using Paru on Arch Linux**
 
   ```bash
-  paru -S opencode-bin
+  paru -S oracle-code-bin
   ```
 
 #### Windows
@@ -90,49 +90,49 @@ You can also install it with the following commands:
 - **Using Chocolatey**
 
   ```bash
-  choco install opencode
+  choco install oracle-code
   ```
 
 - **Using Scoop**
 
   ```bash
   scoop bucket add extras
-  scoop install extras/opencode
+  scoop install extras/oracle-code
   ```
 
 - **Using NPM**
 
   ```bash
-  npm install -g opencode-ai
+  npm install -g oracle-code
   ```
 
 - **Using Mise**
 
   ```bash
-  mise use -g ubi:sst/opencode
+  mise use -g ubi:scawful/oracle-code
   ```
 
 - **Using Docker**
 
   ```bash
-  docker run -it --rm ghcr.io/sst/opencode
+  docker run -it --rm ghcr.io/scawful/oracle-code
   ```
 
-Support for installing OpenCode on Windows using Bun is currently in progress.
+Support for installing Oracle Code on Windows using Bun is currently in progress.
 
-You can also grab the binary from the [Releases](https://github.com/sst/opencode/releases).
+You can also grab the binary from the [Releases](https://github.com/scawful/oracle-code/releases).
 
 ---
 
 ## Configure
 
-With OpenCode you can use any LLM provider by configuring their API keys.
+With Oracle Code you can use any LLM provider by configuring their API keys.
 
-If you are new to using LLM providers, we recommend using [OpenCode Zen](/docs/zen).
-It's a curated list of models that have been tested and verified by the OpenCode
+If you are new to using LLM providers, we recommend using [Oracle Code Zen](/docs/zen).
+It's a curated list of models that have been tested and verified by the Oracle Code
 team.
 
-1. Run the `/connect` command in the TUI, select opencode, and head to [opencode.ai/auth](https://opencode.ai/auth).
+1. Run the `/connect` command in the TUI, select oracle-code, and head to [opencode.ai/auth](https://opencode.ai/auth).
 
    ```txt
    /connect
@@ -162,33 +162,33 @@ you want to work on.
 cd /path/to/project
 ```
 
-And run OpenCode.
+And run Oracle Code.
 
 ```bash
-opencode
+oracle-code
 ```
 
-Next, initialize OpenCode for the project by running the following command.
+Next, initialize Oracle Code for the project by running the following command.
 
 ```bash frame="none"
 /init
 ```
 
-This will get OpenCode to analyze your project and create an `AGENTS.md` file in
+This will get Oracle Code to analyze your project and create an `AGENTS.md` file in
 the project root.
 
 :::tip
 You should commit your project's `AGENTS.md` file to Git.
 :::
 
-This helps OpenCode understand the project structure and the coding patterns
+This helps Oracle Code understand the project structure and the coding patterns
 used.
 
 ---
 
 ## Usage
 
-You are now ready to use OpenCode to work on your project. Feel free to ask it
+You are now ready to use Oracle Code to work on your project. Feel free to ask it
 anything!
 
 If you are new to using an AI coding agent, here are some examples that might
@@ -198,7 +198,7 @@ help.
 
 ### Ask questions
 
-You can ask OpenCode to explain the codebase to you.
+You can ask Oracle Code to explain the codebase to you.
 
 :::tip
 Use the `@` key to fuzzy search for files in the project.
@@ -214,11 +214,11 @@ This is helpful if there's a part of the codebase that you didn't work on.
 
 ### Add features
 
-You can ask OpenCode to add new features to your project. Though we first recommend asking it to create a plan.
+You can ask Oracle Code to add new features to your project. Though we first recommend asking it to create a plan.
 
 1. **Create a plan**
 
-   OpenCode has a _Plan mode_ that disables its ability to make changes and
+   Oracle Code has a _Plan mode_ that disables its ability to make changes and
    instead suggest _how_ it'll implement the feature.
 
    Switch to it using the **Tab** key. You'll see an indicator for this in the lower right corner.
@@ -235,11 +235,11 @@ You can ask OpenCode to add new features to your project. Though we first recomm
    From this screen, the user can undelete a note or permanently delete it.
    ```
 
-   You want to give OpenCode enough details to understand what you want. It helps
+   You want to give Oracle Code enough details to understand what you want. It helps
    to talk to it like you are talking to a junior developer on your team.
 
    :::tip
-   Give OpenCode plenty of context and examples to help it understand what you
+   Give Oracle Code plenty of context and examples to help it understand what you
    want.
    :::
 
@@ -256,7 +256,7 @@ You can ask OpenCode to add new features to your project. Though we first recomm
    Drag and drop images into the terminal to add them to the prompt.
    :::
 
-   OpenCode can scan any images you give it and add them to the prompt. You can
+   Oracle Code can scan any images you give it and add them to the prompt. You can
    do this by dragging and dropping an image into the terminal.
 
 3. **Build the feature**
@@ -278,7 +278,7 @@ You can ask OpenCode to add new features to your project. Though we first recomm
 
 ### Make changes
 
-For more straightforward changes, you can ask OpenCode to directly build it
+For more straightforward changes, you can ask Oracle Code to directly build it
 without having to review the plan first.
 
 ```txt frame="none" "@packages/functions/src/settings.ts" "@packages/functions/src/notes.ts"
@@ -287,14 +287,14 @@ handled in the /notes route in @packages/functions/src/notes.ts and implement
 the same logic in @packages/functions/src/settings.ts
 ```
 
-You want to make sure you provide a good amount of detail so OpenCode makes the right
+You want to make sure you provide a good amount of detail so Oracle Code makes the right
 changes.
 
 ---
 
 ### Undo changes
 
-Let's say you ask OpenCode to make some changes.
+Let's say you ask Oracle Code to make some changes.
 
 ```txt frame="none" "@packages/functions/src/api/index.ts"
 Can you refactor the function in @packages/functions/src/api/index.ts?
@@ -307,14 +307,14 @@ using the `/undo` command.
 /undo
 ```
 
-OpenCode will now revert the changes you made and show your original message
+Oracle Code will now revert the changes you made and show your original message
 again.
 
 ```txt frame="none" "@packages/functions/src/api/index.ts"
 Can you refactor the function in @packages/functions/src/api/index.ts?
 ```
 
-From here you can tweak the prompt and ask OpenCode to try again.
+From here you can tweak the prompt and ask Oracle Code to try again.
 
 :::tip
 You can run `/undo` multiple times to undo multiple changes.
@@ -330,7 +330,7 @@ Or you **can redo** the changes using the `/redo` command.
 
 ## Share
 
-The conversations that you have with OpenCode can be [shared with your
+The conversations that you have with Oracle Code can be [shared with your
 team](/docs/share).
 
 ```bash frame="none"
@@ -343,12 +343,12 @@ This will create a link to the current conversation and copy it to your clipboar
 Conversations are not shared by default.
 :::
 
-Here's an [example conversation](https://opencode.ai/s/4XP1fce5) with OpenCode.
+Here's an [example conversation](https://opencode.ai/s/4XP1fce5) with Oracle Code.
 
 ---
 
 ## Customize
 
-And that's it! You are now a pro at using OpenCode.
+And that's it! You are now a pro at using Oracle Code.
 
-To make it your own, we recommend [picking a theme](/docs/themes), [customizing the keybinds](/docs/keybinds), [configuring code formatters](/docs/formatters), [creating custom commands](/docs/commands), or playing around with the [OpenCode config](/docs/config).
+To make it your own, we recommend [picking a theme](/docs/themes), [customizing the keybinds](/docs/keybinds), [configuring code formatters](/docs/formatters), [creating custom commands](/docs/commands), or playing around with the [Oracle Code config](/docs/config).

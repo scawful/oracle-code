@@ -1,16 +1,16 @@
 import type { APIEvent } from "@solidjs/start/server"
-import { and, Database, eq, isNull, lt, or, sql } from "@opencode-ai/console-core/drizzle/index.js"
-import { KeyTable } from "@opencode-ai/console-core/schema/key.sql.js"
-import { BillingTable, UsageTable } from "@opencode-ai/console-core/schema/billing.sql.js"
-import { centsToMicroCents } from "@opencode-ai/console-core/util/price.js"
-import { Identifier } from "@opencode-ai/console-core/identifier.js"
-import { Billing } from "@opencode-ai/console-core/billing.js"
-import { Actor } from "@opencode-ai/console-core/actor.js"
-import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
-import { ZenData } from "@opencode-ai/console-core/model.js"
-import { UserTable } from "@opencode-ai/console-core/schema/user.sql.js"
-import { ModelTable } from "@opencode-ai/console-core/schema/model.sql.js"
-import { ProviderTable } from "@opencode-ai/console-core/schema/provider.sql.js"
+import { and, Database, eq, isNull, lt, or, sql } from "@oracle-code/console-core/drizzle/index.js"
+import { KeyTable } from "@oracle-code/console-core/schema/key.sql.js"
+import { BillingTable, UsageTable } from "@oracle-code/console-core/schema/billing.sql.js"
+import { centsToMicroCents } from "@oracle-code/console-core/util/price.js"
+import { Identifier } from "@oracle-code/console-core/identifier.js"
+import { Billing } from "@oracle-code/console-core/billing.js"
+import { Actor } from "@oracle-code/console-core/actor.js"
+import { WorkspaceTable } from "@oracle-code/console-core/schema/workspace.sql.js"
+import { ZenData } from "@oracle-code/console-core/model.js"
+import { UserTable } from "@oracle-code/console-core/schema/user.sql.js"
+import { ModelTable } from "@oracle-code/console-core/schema/model.sql.js"
+import { ProviderTable } from "@oracle-code/console-core/schema/provider.sql.js"
 import { logger } from "./logger"
 import { AuthError, CreditsError, MonthlyLimitError, UserLimitError, ModelError, RateLimitError } from "./error"
 import { createBodyConverter, createStreamPartConverter, createResponseConverter, UsageInfo } from "./provider/provider"
@@ -45,7 +45,7 @@ export async function handler(
   const MAX_RETRIES = 3
   const FREE_WORKSPACES = [
     "wrk_01K46JDFR0E75SG2Q8K172KF3Y", // frank
-    "wrk_01K6W1A3VE0KMNVSCQT43BG2SX", // opencode bench
+    "wrk_01K6W1A3VE0KMNVSCQT43BG2SX", // oracle-code bench
   ]
 
   try {
@@ -54,9 +54,9 @@ export async function handler(
     const model = opts.parseModel(url, body)
     const isStream = opts.parseIsStream(url, body)
     const ip = input.request.headers.get("x-real-ip") ?? ""
-    const sessionId = input.request.headers.get("x-opencode-session") ?? ""
+    const sessionId = input.request.headers.get("x-oracle-code-session") ?? ""
     const requestId = input.request.headers.get("x-opencode-request") ?? ""
-    const projectId = input.request.headers.get("x-opencode-project") ?? ""
+    const projectId = input.request.headers.get("x-oracle-code-project") ?? ""
     logger.metric({
       is_tream: isStream,
       session: sessionId,
@@ -109,7 +109,7 @@ export async function handler(
           headers.delete("host")
           headers.delete("content-length")
           headers.delete("x-opencode-request")
-          headers.delete("x-opencode-session")
+          headers.delete("x-oracle-code-session")
           return headers
         })(),
         body: reqBody,

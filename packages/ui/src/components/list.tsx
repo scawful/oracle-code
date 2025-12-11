@@ -1,6 +1,6 @@
 import { createEffect, Show, For, type JSX, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
-import { FilteredListProps, useFilteredList } from "@opencode-ai/ui/hooks"
+import { FilteredListProps, useFilteredList } from "@oracle-code/ui/hooks"
 import { Icon, IconProps } from "./icon"
 
 export interface ListProps<T> extends FilteredListProps<T> {

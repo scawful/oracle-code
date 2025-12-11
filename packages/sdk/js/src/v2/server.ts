@@ -18,7 +18,7 @@ export type TuiOptions = {
   config?: Config
 }
 
-export async function createOpencodeServer(options?: ServerOptions) {
+export async function createOracleCodeServer(options?: ServerOptions) {
   options = Object.assign(
     {
       hostname: "127.0.0.1",
@@ -32,7 +32,7 @@ export async function createOpencodeServer(options?: ServerOptions) {
     signal: options.signal,
     env: {
       ...process.env,
-      OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
+      OCODE_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
     },
   })
 
@@ -87,7 +87,7 @@ export async function createOpencodeServer(options?: ServerOptions) {
   }
 }
 
-export function createOpencodeTui(options?: TuiOptions) {
+export function createOracleCodeTui(options?: TuiOptions) {
   const args = []
 
   if (options?.project) {
@@ -108,7 +108,7 @@ export function createOpencodeTui(options?: TuiOptions) {
     stdio: "inherit",
     env: {
       ...process.env,
-      OPENCODE_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
+      OCODE_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
     },
   })
 

@@ -1,0 +1,23 @@
+Read shared state from .context/scratchpad/state.md.
+
+Use this tool to:
+- Check what facts, assumptions, and decisions have been established
+- Understand the current context before making changes
+- Coordinate with other agents by reading shared understanding
+
+The state contains sections:
+- facts: Confirmed, verified information
+- assumptions: Working assumptions that may need validation
+- decisions: Architectural and design decisions made
+- uncertainties: Areas requiring clarification
+- goals: Current objectives and targets
+- context: Environmental and situational context
+
+Parameters:
+- key: (optional) Specific key to read. Omit to read all state.
+- section: (optional) Filter by section name.
+
+Example usage:
+- Read all state: state_read({})
+- Read specific key: state_read({ key: "current_task" })
+- Read section: state_read({ section: "decisions" })

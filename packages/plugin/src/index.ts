@@ -1,6 +1,6 @@
 import type {
   Event,
-  createOpencodeClient,
+  createOracleCodeClient,
   Project,
   Model,
   Provider,
@@ -9,7 +9,7 @@ import type {
   Part,
   Auth,
   Config,
-} from "@opencode-ai/sdk"
+} from "@oracle-code/sdk"
 
 import type { BunShell } from "./shell"
 import { type ToolDefinition } from "./tool"
@@ -23,7 +23,7 @@ export type ProviderContext = {
 }
 
 export type PluginInput = {
-  client: ReturnType<typeof createOpencodeClient>
+  client: ReturnType<typeof createOracleCodeClient>
   project: Project
   directory: string
   worktree: string

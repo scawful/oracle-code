@@ -12,10 +12,10 @@ import type {
   Todo,
   SessionStatus,
   ProviderListResponse,
-} from "@opencode-ai/sdk/v2"
+} from "@oracle-code/sdk/v2"
 import { createStore, produce, reconcile } from "solid-js/store"
-import { Binary } from "@opencode-ai/util/binary"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { Binary } from "@oracle-code/util/binary"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { useGlobalSDK } from "./global-sdk"
 
 type State = {

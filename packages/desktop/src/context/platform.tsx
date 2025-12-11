@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@oracle-code/ui/context"
 
 export type Platform = {
   /** Platform discriminator */

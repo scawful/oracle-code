@@ -1,9 +1,9 @@
 ---
 title: Plugins
-description: Write your own plugins to extend OpenCode.
+description: Write your own plugins to extend Oracle Code.
 ---
 
-Plugins allow you to extend OpenCode by hooking into various events and customizing behavior. You can create plugins to add new features, integrate with external services, or modify OpenCode's default behavior.
+Plugins allow you to extend Oracle Code by hooking into various events and customizing behavior. You can create plugins to add new features, integrate with external services, or modify Oracle Code's default behavior.
 
 For examples, check out the [plugins](/docs/ecosystem#plugins) created by the community.
 
@@ -20,14 +20,14 @@ functions. Each function receives a context object and returns a hooks object.
 
 Plugins are loaded from:
 
-1. `.opencode/plugin` directory either in your project
-2. Or, globally in `~/.config/opencode/plugin`
+1. `.oracle-code/plugin` directory either in your project
+2. Or, globally in `~/.config/oracle-code/plugin`
 
 ---
 
 ### Basic structure
 
-```js title=".opencode/plugin/example.js"
+```js title=".oracle-code/plugin/example.js"
 export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
   console.log("Plugin initialized!")
 
@@ -42,7 +42,7 @@ The plugin function receives:
 - `project`: The current project information.
 - `directory`: The current working directory.
 - `worktree`: The git worktree path.
-- `client`: An opencode SDK client for interacting with the AI.
+- `client`: An oracle-code SDK client for interacting with the AI.
 - `$`: Bun's [shell API](https://bun.com/docs/runtime/shell) for executing commands.
 
 ---
@@ -52,7 +52,7 @@ The plugin function receives:
 For TypeScript plugins, you can import types from the plugin package:
 
 ```ts title="my-plugin.ts" {1}
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin } from "@oracle-code/plugin"
 
 export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {
   return {
@@ -131,7 +131,7 @@ Plugins can subscribe to events as seen below in the Examples section. Here is a
 
 ## Examples
 
-Here are some examples of plugins you can use to extend opencode.
+Here are some examples of plugins you can use to extend oracle-code.
 
 ---
 
@@ -139,13 +139,13 @@ Here are some examples of plugins you can use to extend opencode.
 
 Send notifications when certain events occur:
 
-```js title=".opencode/plugin/notification.js"
+```js title=".oracle-code/plugin/notification.js"
 export const NotificationPlugin = async ({ project, client, $, directory, worktree }) => {
   return {
     event: async ({ event }) => {
       // Send notification on session completion
       if (event.type === "session.idle") {
-        await $`osascript -e 'display notification "Session completed!" with title "opencode"'`
+        await $`osascript -e 'display notification "Session completed!" with title "oracle-code"'`
       }
     },
   }
@@ -158,9 +158,9 @@ We are using `osascript` to run AppleScript on macOS. Here we are using it to se
 
 ### .env protection
 
-Prevent opencode from reading `.env` files:
+Prevent oracle-code from reading `.env` files:
 
-```javascript title=".opencode/plugin/env-protection.js"
+```javascript title=".oracle-code/plugin/env-protection.js"
 export const EnvProtection = async ({ project, client, $, directory, worktree }) => {
   return {
     "tool.execute.before": async (input, output) => {
@@ -176,10 +176,10 @@ export const EnvProtection = async ({ project, client, $, directory, worktree })
 
 ### Custom tools
 
-Plugins can also add custom tools to opencode:
+Plugins can also add custom tools to oracle-code:
 
-```ts title=".opencode/plugin/custom-tools.ts"
-import { type Plugin, tool } from "@opencode-ai/plugin"
+```ts title=".oracle-code/plugin/custom-tools.ts"
+import { type Plugin, tool } from "@oracle-code/plugin"
 
 export const CustomToolsPlugin: Plugin = async (ctx) => {
   return {
@@ -198,10 +198,10 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
 }
 ```
 
-The `tool` helper creates a custom tool that opencode can call. It takes a Zod schema function and returns a tool definition with:
+The `tool` helper creates a custom tool that oracle-code can call. It takes a Zod schema function and returns a tool definition with:
 
 - `description`: What the tool does
 - `args`: Zod schema for the tool's arguments
 - `execute`: Function that runs when the tool is called
 
-Your custom tools will be available to opencode alongside built-in tools.
+Your custom tools will be available to oracle-code alongside built-in tools.

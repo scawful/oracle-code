@@ -21,9 +21,9 @@ jobs:
 
       - name: Check for duplicate issues
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OCODE_API_KEY: ${{ secrets.OCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_PERMISSION: |
+          OCODE_PERMISSION: |
             {
               "bash": {
                 "gh issue*": "allow",

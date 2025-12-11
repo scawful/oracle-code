@@ -1,0 +1,26 @@
+{
+  "$schema": "https://oracle-code.ai/config.json",
+  // "plugin": ["opencode-openai-codex-auth"],  // uncomment if you need OpenAI Codex auth
+  // "enterprise": {
+  //   "url": "https://enterprise.dev.oracle-code.ai",
+  // },
+  "instructions": ["STYLE_GUIDE.md", ".context/memory/AFS_SPEC.md", ".context/memory/SWARM_SPEC.md"],
+  "provider": {
+    "oracle-code": {
+      "options": {},
+    },
+  },
+  "mcp": {
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+    },
+    "morph": {
+      "type": "local",
+      "command": ["bunx", "@morphllm/morphmcp"],
+      "environment": {
+        "ENABLED_TOOLS": "warp_grep",
+      },
+    },
+  },
+}

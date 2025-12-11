@@ -7,7 +7,7 @@ import {
   TextPart,
   ToolPart,
   UserMessage,
-} from "@opencode-ai/sdk/v2"
+} from "@oracle-code/sdk/v2"
 import { useDiffComponent } from "../context/diff"
 import { BasicTool } from "./basic-tool"
 import { GenericTool } from "./basic-tool"
@@ -16,8 +16,8 @@ import { Icon } from "./icon"
 import { Checkbox } from "./checkbox"
 import { DiffChanges } from "./diff-changes"
 import { Markdown } from "./markdown"
-import { getDirectory, getFilename } from "@opencode-ai/util/path"
-import { sanitizePart } from "@opencode-ai/util/sanitize"
+import { getDirectory, getFilename } from "@oracle-code/util/path"
+import { sanitizePart } from "@oracle-code/util/sanitize"
 import { unwrap } from "solid-js/store"
 
 export interface MessageProps {

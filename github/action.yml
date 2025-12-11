@@ -1,5 +1,5 @@
-name: "opencode GitHub Action"
-description: "Run opencode in GitHub Actions workflows"
+name: "Oracle Code GitHub Action"
+description: "Run Oracle Code in GitHub Actions workflows"
 branding:
   icon: "code"
   color: "orange"
@@ -10,7 +10,7 @@ inputs:
     required: true
 
   share:
-    description: "Share the opencode session (defaults to true for public repos)"
+    description: "Share the Oracle Code session (defaults to true for public repos)"
     required: false
 
   prompt:
@@ -20,14 +20,14 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install opencode
+    - name: Install Oracle Code
       shell: bash
-      run: curl -fsSL https://opencode.ai/install | bash
+      run: curl -fsSL https://oracle-code.ai/install | bash
 
-    - name: Run opencode
+    - name: Run Oracle Code
       shell: bash
-      id: run_opencode
-      run: opencode github run
+      id: run_oracle_code
+      run: ocode github run
       env:
         MODEL: ${{ inputs.model }}
         SHARE: ${{ inputs.share }}

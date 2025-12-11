@@ -1,7 +1,7 @@
 import { produce } from "solid-js/store"
 import { createMemo } from "solid-js"
-import { Binary } from "@opencode-ai/util/binary"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { Binary } from "@oracle-code/util/binary"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { useGlobalSync } from "./global-sync"
 import { useSDK } from "./sdk"
 

@@ -1,11 +1,11 @@
 import { createStore, produce, reconcile } from "solid-js/store"
 import { batch, createEffect, createMemo } from "solid-js"
 import { uniqueBy } from "remeda"
-import type { FileContent, FileNode, Model, Provider, File as FileStatus } from "@opencode-ai/sdk/v2"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import type { FileContent, FileNode, Model, Provider, File as FileStatus } from "@oracle-code/sdk/v2"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
-import { base64Encode } from "@opencode-ai/util/encode"
+import { base64Encode } from "@oracle-code/util/encode"
 
 export type LocalFile = FileNode &
   Partial<{

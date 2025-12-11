@@ -1,9 +1,9 @@
 import { useGlobalSync } from "@/context/global-sync"
-import { base64Decode } from "@opencode-ai/util/encode"
+import { base64Decode } from "@oracle-code/util/encode"
 import { useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 
-export const popularProviders = ["opencode", "anthropic", "github-copilot", "openai", "google", "openrouter", "vercel"]
+export const popularProviders = ["oracle-code", "anthropic", "github-copilot", "openai", "google", "openrouter", "vercel"]
 
 export function useProviders() {
   const params = useParams()

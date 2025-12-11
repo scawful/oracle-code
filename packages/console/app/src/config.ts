@@ -7,7 +7,7 @@ export const config = {
 
   // GitHub
   github: {
-    repoUrl: "https://github.com/sst/opencode",
+    repoUrl: "https://github.com/scawful/oracle-code",
     starsFormatted: {
       compact: "38K",
       full: "38,000",

@@ -1,0 +1,15 @@
+#!/bin/bash
+# Wrapper to run oracle-code - uses built binary for proper directory handling
+
+REPO_ROOT="$(cd "$(dirname "$0")"; pwd)"
+BINARY="$REPO_ROOT/packages/oracle-code/dist/ocode-darwin-arm64/bin/ocode"
+
+# Fall back to running from source if binary doesn't exist
+if [[ ! -x "$BINARY" ]]; then
+  export PATH="$HOME/.bun/bin:$PATH"
+  cd "$REPO_ROOT/packages/oracle-code"
+  exec bun run --conditions=browser src/index.ts "$@"
+fi
+
+# Use the built binary (runs in current directory properly)
+exec "$BINARY" "$@"

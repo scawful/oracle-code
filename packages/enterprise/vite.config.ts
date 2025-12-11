@@ -4,7 +4,7 @@ import { nitro } from "nitro/vite"
 import tailwindcss from "@tailwindcss/vite"
 
 const nitroConfig: any = (() => {
-  const target = process.env.OPENCODE_DEPLOYMENT_TARGET
+  const target = process.env.OCODE_DEPLOYMENT_TARGET
   if (target === "cloudflare") {
     return {
       compatibilityDate: "2024-09-19",

@@ -1,10 +1,10 @@
 import "@/index.css"
 import { Router, Route, Navigate } from "@solidjs/router"
 import { MetaProvider } from "@solidjs/meta"
-import { Font } from "@opencode-ai/ui/font"
-import { MarkedProvider } from "@opencode-ai/ui/context/marked"
-import { DiffComponentProvider } from "@opencode-ai/ui/context/diff"
-import { Diff } from "@opencode-ai/ui/diff"
+import { Font } from "@oracle-code/ui/font"
+import { MarkedProvider } from "@oracle-code/ui/context/marked"
+import { DiffComponentProvider } from "@oracle-code/ui/context/diff"
+import { Diff } from "@oracle-code/ui/diff"
 import { GlobalSyncProvider } from "./context/global-sync"
 import Layout from "@/pages/layout"
 import Home from "@/pages/home"
@@ -17,12 +17,12 @@ import { Show } from "solid-js"
 
 declare global {
   interface Window {
-    __OPENCODE__?: { updaterEnabled?: boolean; port?: number }
+    __OCODE__?: { updaterEnabled?: boolean; port?: number }
   }
 }
 
-const host = import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "127.0.0.1"
-const port = window.__OPENCODE__?.port ?? import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"
+const host = import.meta.env.VITE_OCODE_SERVER_HOST ?? "127.0.0.1"
+const port = window.__OCODE__?.port ?? import.meta.env.VITE_OCODE_SERVER_PORT ?? "4096"
 
 const url =
   new URLSearchParams(document.location.search).get("url") ||

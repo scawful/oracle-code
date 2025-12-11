@@ -1,11 +1,11 @@
 import { createStore, produce } from "solid-js/store"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { batch, createEffect, createMemo } from "solid-js"
 import { useSync } from "./sync"
 import { makePersisted } from "@solid-primitives/storage"
 import { TextSelection } from "./local"
 import { pipe, sumBy } from "remeda"
-import { AssistantMessage, UserMessage } from "@opencode-ai/sdk/v2"
+import { AssistantMessage, UserMessage } from "@oracle-code/sdk/v2"
 import { useParams } from "@solidjs/router"
 import { useSDK } from "./sdk"
 

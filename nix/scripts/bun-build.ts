@@ -1,9 +1,9 @@
-import solidPlugin from "./packages/opencode/node_modules/@opentui/solid/scripts/solid-plugin"
+import solidPlugin from "./packages/oracle-code/node_modules/@opentui/solid/scripts/solid-plugin"
 import path from "path"
 import fs from "fs"
 
 const version = "@VERSION@"
-const pkg = path.join(process.cwd(), "packages/opencode")
+const pkg = path.join(process.cwd(), "packages/oracle-code")
 const parser = fs.realpathSync(path.join(pkg, "./node_modules/@opentui/core/parser.worker.js"))
 const worker = "./src/cli/cmd/tui/worker.ts"
 const target = process.env["BUN_COMPILE_TARGET"]
@@ -14,7 +14,7 @@ if (!target) {
 
 process.chdir(pkg)
 
-const manifestName = "opencode-assets.manifest"
+const manifestName = "oracle-code-assets.manifest"
 const manifestPath = path.join(pkg, manifestName)
 
 const readTrackedAssets = () => {
@@ -53,14 +53,14 @@ const result = await Bun.build({
   sourcemap: "external",
   entrypoints: ["./src/index.ts", parser, worker],
   define: {
-    OPENCODE_VERSION: `'@VERSION@'`,
+    OCODE_VERSION: `'@VERSION@'`,
     OTUI_TREE_SITTER_WORKER_PATH: "/$bunfs/root/" + path.relative(pkg, parser).replace(/\\/g, "/"),
-    OPENCODE_CHANNEL: "'latest'",
+    OCODE_CHANNEL: "'latest'",
   },
   compile: {
     target,
-    outfile: "opencode",
-    execArgv: ["--user-agent=opencode/" + version, '--env-file=""', "--"],
+    outfile: "ocode",
+    execArgv: ["--user-agent=oracle-code/" + version, '--env-file=""', "--"],
     windows: {},
   },
 })
@@ -105,7 +105,7 @@ if (!output) {
   throw new Error("Worker build produced no entry-point output")
 }
 
-const dest = path.join(pkg, "opencode-worker.js")
+const dest = path.join(pkg, "oracle-code-worker.js")
 await Bun.write(dest, Bun.file(output.path))
 fs.rmSync(path.dirname(output.path), { recursive: true, force: true })
 

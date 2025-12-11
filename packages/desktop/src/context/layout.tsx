@@ -1,10 +1,10 @@
 import { createStore } from "solid-js/store"
 import { createMemo, onMount } from "solid-js"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@oracle-code/ui/context"
 import { makePersisted } from "@solid-primitives/storage"
 import { useGlobalSync } from "./global-sync"
 import { useGlobalSDK } from "./global-sdk"
-import { Project } from "@opencode-ai/sdk/v2"
+import { Project } from "@oracle-code/sdk/v2"
 
 const PASTEL_COLORS = [
   "#FCEAFD", // pastel pink

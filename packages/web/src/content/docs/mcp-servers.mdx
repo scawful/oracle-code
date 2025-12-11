@@ -3,9 +3,9 @@ title: MCP servers
 description: Add local and remote MCP tools.
 ---
 
-You can add external tools to OpenCode using the _Model Context Protocol_, or MCP.
+You can add external tools to Oracle Code using the _Model Context Protocol_, or MCP.
 
-OpenCode supports both:
+Oracle Code supports both:
 
 - Local servers
 - Remote servers
@@ -32,10 +32,10 @@ can easily exceed the context limit.
 
 ## Configure
 
-You can define MCP servers in your OpenCode config under `mcp`. Add each MCP
+You can define MCP servers in your Oracle Code config under `mcp`. Add each MCP
 with a unique name. You can refer to that MCP by name when prompting the LLM.
 
-```jsonc title="opencode.jsonc" {6}
+```jsonc title="oracle-code.jsonc" {6}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -58,7 +58,7 @@ You can also disable a server by setting `enabled` to `false`. This is useful if
 
 Add local MCP servers using `type` to `"local"` within the MCP object.
 
-```jsonc title="opencode.jsonc" {15}
+```jsonc title="oracle-code.jsonc" {15}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -80,7 +80,7 @@ The command is how the local MCP server is started. You can also pass in a list 
 For example, here's how I can add the test
 [`@modelcontextprotocol/server-everything`](https://www.npmjs.com/package/@modelcontextprotocol/server-everything) MCP server.
 
-```jsonc title="opencode.jsonc"
+```jsonc title="oracle-code.jsonc"
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -116,7 +116,7 @@ Here are all the options for configuring a local MCP server.
 
 Add remote MCP servers under by setting `type` to `"remote"`.
 
-```json title="opencode.json"
+```json title="oracle-code.json"
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -149,7 +149,7 @@ Here the `url` is the URL of the remote MCP server and with the `headers` option
 
 ### OAuth
 
-OpenCode automatically handles OAuth authentication for remote MCP servers. When a server requires authentication, OpenCode will:
+Oracle Code automatically handles OAuth authentication for remote MCP servers. When a server requires authentication, Oracle Code will:
 
 1. Detect the 401 response and initiate the OAuth flow
 2. Use **Dynamic Client Registration (RFC 7591)** if supported by the server
@@ -159,7 +159,7 @@ OpenCode automatically handles OAuth authentication for remote MCP servers. When
 
 For most OAuth-enabled MCP servers, no special configuration is needed. Just configure the remote server:
 
-```json title="opencode.json"
+```json title="oracle-code.json"
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -171,13 +171,13 @@ For most OAuth-enabled MCP servers, no special configuration is needed. Just con
 }
 ```
 
-If the server requires authentication, OpenCode will prompt you to authenticate when you first try to use it.
+If the server requires authentication, Oracle Code will prompt you to authenticate when you first try to use it.
 
 #### Pre-registered Client
 
 If you have client credentials from the MCP server provider, you can configure them:
 
-```json title="opencode.json"
+```json title="oracle-code.json"
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -198,7 +198,7 @@ If you have client credentials from the MCP server provider, you can configure t
 
 If you want to disable automatic OAuth for a server (e.g., for servers that use API keys instead), set `oauth` to `false`:
 
-```json title="opencode.json"
+```json title="oracle-code.json"
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -229,23 +229,23 @@ You can manually trigger authentication or manage credentials:
 
 ```bash
 # Authenticate with a specific MCP server
-opencode mcp auth my-oauth-server
+oracle-code mcp auth my-oauth-server
 
 # List all MCP servers and their auth status
-opencode mcp list
+oracle-code mcp list
 
 # Remove stored credentials
-opencode mcp logout my-oauth-server
+oracle-code mcp logout my-oauth-server
 ```
 
-The `mcp auth` command will open your browser for authorization. After you authorize, OpenCode will store the tokens securely in `~/.local/share/opencode/mcp-auth.json`.
+The `mcp auth` command will open your browser for authorization. After you authorize, Oracle Code will store the tokens securely in `~/.local/share/oracle-code/mcp-auth.json`.
 
 ---
 
 ## Manage
 
-Your MCPs are available as tools in OpenCode, alongside built-in tools. So you
-can manage them through the OpenCode config like any other tool.
+Your MCPs are available as tools in Oracle Code, alongside built-in tools. So you
+can manage them through the Oracle Code config like any other tool.
 
 ---
 
@@ -253,7 +253,7 @@ can manage them through the OpenCode config like any other tool.
 
 This means that you can enable or disable them globally.
 
-```json title="opencode.json" {14}
+```json title="oracle-code.json" {14}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -274,7 +274,7 @@ This means that you can enable or disable them globally.
 
 We can also use a glob pattern to disable all matching MCPs.
 
-```json title="opencode.json" {14}
+```json title="oracle-code.json" {14}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -305,7 +305,7 @@ agent and disable them globally. To do this:
 1. Disable it as a tool globally.
 2. In your [agent config](/docs/agents#tools) enable the MCP server as a tool.
 
-```json title="opencode.json" {11, 14-18}
+```json title="oracle-code.json" {11, 14-18}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -350,7 +350,7 @@ Below are examples of some common MCP servers. You can submit a PR if you want t
 
 Add the [Context7 MCP server](https://github.com/upstash/context7) to search through docs.
 
-```json title="opencode.json" {4-7}
+```json title="oracle-code.json" {4-7}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -364,7 +364,7 @@ Add the [Context7 MCP server](https://github.com/upstash/context7) to search thr
 
 If you have signed up for a free account, you can use your API key and get higher rate-limits.
 
-```json title="opencode.json" {7-9}
+```json title="oracle-code.json" {7-9}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -400,7 +400,7 @@ When you need to search docs, use `context7` tools.
 
 Add the [Grep by Vercel](https://grep.app) MCP server to search through code snippets on GitHub.
 
-```json title="opencode.json" {4-7}
+```json title="oracle-code.json" {4-7}
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {

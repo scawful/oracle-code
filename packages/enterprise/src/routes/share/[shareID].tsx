@@ -1,30 +1,30 @@
-import { FileDiff, Message, Model, Part, Session, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
-import { SessionTurn } from "@opencode-ai/ui/session-turn"
-import { SessionReview } from "@opencode-ai/ui/session-review"
-import { DataProvider } from "@opencode-ai/ui/context"
-import { DiffComponentProvider } from "@opencode-ai/ui/context/diff"
+import { FileDiff, Message, Model, Part, Session, SessionStatus, UserMessage } from "@oracle-code/sdk/v2"
+import { SessionTurn } from "@oracle-code/ui/session-turn"
+import { SessionReview } from "@oracle-code/ui/session-review"
+import { DataProvider } from "@oracle-code/ui/context"
+import { DiffComponentProvider } from "@oracle-code/ui/context/diff"
 import { createAsync, query, useParams } from "@solidjs/router"
 import { createEffect, createMemo, ErrorBoundary, For, Match, Show, Switch } from "solid-js"
 import { Share } from "~/core/share"
-import { Logo, Mark } from "@opencode-ai/ui/logo"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { createDefaultOptions } from "@opencode-ai/ui/pierre"
-import { iife } from "@opencode-ai/util/iife"
-import { Binary } from "@opencode-ai/util/binary"
-import { NamedError } from "@opencode-ai/util/error"
+import { Logo, Mark } from "@oracle-code/ui/logo"
+import { IconButton } from "@oracle-code/ui/icon-button"
+import { ProviderIcon } from "@oracle-code/ui/provider-icon"
+import { createDefaultOptions } from "@oracle-code/ui/pierre"
+import { iife } from "@oracle-code/util/iife"
+import { Binary } from "@oracle-code/util/binary"
+import { NamedError } from "@oracle-code/util/error"
 import { DateTime } from "luxon"
-import { SessionMessageRail } from "@opencode-ai/ui/session-message-rail"
+import { SessionMessageRail } from "@oracle-code/ui/session-message-rail"
 import { createStore } from "solid-js/store"
 import z from "zod"
 import NotFound from "../[...404]"
-import { Tabs } from "@opencode-ai/ui/tabs"
+import { Tabs } from "@oracle-code/ui/tabs"
 import { preloadMultiFileDiff, PreloadMultiFileDiffResult } from "@pierre/precision-diffs/ssr"
-import { Diff as SSRDiff } from "@opencode-ai/ui/diff-ssr"
+import { Diff as SSRDiff } from "@oracle-code/ui/diff-ssr"
 import { clientOnly } from "@solidjs/start"
-import { type IconName } from "@opencode-ai/ui/icons/provider"
+import { type IconName } from "@oracle-code/ui/icons/provider"
 
-const ClientOnlyDiff = clientOnly(() => import("@opencode-ai/ui/diff").then((m) => ({ default: m.Diff })))
+const ClientOnlyDiff = clientOnly(() => import("@oracle-code/ui/diff").then((m) => ({ default: m.Diff })))
 
 const SessionDataMissingError = NamedError.create(
   "SessionDataMissingError",
@@ -261,7 +261,7 @@ export default function () {
                         <div class="flex gap-3 items-center">
                           <IconButton
                             as={"a"}
-                            href="https://github.com/sst/opencode"
+                            href="https://github.com/scawful/oracle-code"
                             target="_blank"
                             icon="github"
                             variant="ghost"

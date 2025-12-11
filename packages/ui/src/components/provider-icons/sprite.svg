@@ -300,7 +300,7 @@
         <path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z"></path>
       </g>
     </symbol>
-    <symbol viewBox="0 0 160 200" fill="currentColor" id="opencode">
+    <symbol viewBox="0 0 160 200" fill="currentColor" id="oracle-code">
       <path d="M40 160H160V200H0V120H40V160Z"></path>
       <path d="M120 80V120H40V80H120Z"></path>
       <path d="M160 80H120V40H0V0H160V80Z"></path>

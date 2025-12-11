@@ -14,9 +14,9 @@ use tokio::net::TcpSocket;
 struct ServerState(Arc<Mutex<Option<CommandChild>>>);
 
 fn get_sidecar_port() -> u16 {
-    option_env!("OPENCODE_PORT")
+    option_env!("OCODE_PORT")
         .map(|s| s.to_string())
-        .or_else(|| std::env::var("OPENCODE_PORT").ok())
+        .or_else(|| std::env::var("OCODE_PORT").ok())
         .and_then(|port_str| port_str.parse().ok())
         .unwrap_or_else(|| {
             TcpListener::bind("127.0.0.1:0")
@@ -66,7 +66,7 @@ fn spawn_sidecar(app: &AppHandle, port: u16) -> CommandChild {
         .shell()
         .sidecar("opencode")
         .unwrap()
-        .env("OPENCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
+        .env("OCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
         .args(["serve", &format!("--port={port}")])
         .spawn()
         .expect("Failed to spawn opencode");
@@ -174,9 +174,9 @@ pub fn run() {
                         .zoom_hotkeys_enabled(true)
                         .initialization_script(format!(
                             r#"
-                          window.__OPENCODE__ ??= {{}};
-                          window.__OPENCODE__.updaterEnabled = {updater_enabled};
-                          window.__OPENCODE__.port = {port};
+                          window.__OCODE__ ??= {{}};
+                          window.__OCODE__.updaterEnabled = {updater_enabled};
+                          window.__OCODE__.port = {port};
                         "#
                         ));
 

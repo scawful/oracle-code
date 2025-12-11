@@ -1,0 +1,19 @@
+Write or update the plan file in the AFS scratchpad.
+
+The plan file (.context/scratchpad/plan.md) is a central document for:
+- Current task breakdown and steps
+- Implementation strategy
+- Progress tracking
+- Notes and decisions
+
+This is a specialized tool for the plan file. For other scratchpad files, use afs_write.
+
+Parameters:
+- content: The plan content in markdown format
+- append: Optional. If true, append to existing plan instead of replacing. Default: false.
+
+Best practices for plans:
+- Use markdown headers for sections (## Current Task, ## Steps, ## Notes)
+- Mark completed items with [x] in checklists
+- Include timestamps for progress tracking
+- Keep the plan focused on the current task

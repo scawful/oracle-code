@@ -1,5 +1,5 @@
-import { Database, eq, sql } from "@opencode-ai/console-core/drizzle/index.js"
-import { IpTable } from "@opencode-ai/console-core/schema/ip.sql.js"
+import { Database, eq, sql } from "@oracle-code/console-core/drizzle/index.js"
+import { IpTable } from "@oracle-code/console-core/schema/ip.sql.js"
 import { UsageInfo } from "./provider/provider"
 
 export function createTrialLimiter(limit: number | undefined, ip: string) {

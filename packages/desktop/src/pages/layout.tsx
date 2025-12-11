@@ -3,21 +3,21 @@ import { DateTime } from "luxon"
 import { A, useNavigate, useParams } from "@solidjs/router"
 import { useLayout } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
-import { base64Decode, base64Encode } from "@opencode-ai/util/encode"
-import { Mark } from "@opencode-ai/ui/logo"
-import { Avatar } from "@opencode-ai/ui/avatar"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { Collapsible } from "@opencode-ai/ui/collapsible"
-import { DiffChanges } from "@opencode-ai/ui/diff-changes"
-import { getFilename } from "@opencode-ai/util/path"
-import { Select } from "@opencode-ai/ui/select"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Session, Project } from "@opencode-ai/sdk/v2/client"
+import { base64Decode, base64Encode } from "@oracle-code/util/encode"
+import { Mark } from "@oracle-code/ui/logo"
+import { Avatar } from "@oracle-code/ui/avatar"
+import { ResizeHandle } from "@oracle-code/ui/resize-handle"
+import { Button } from "@oracle-code/ui/button"
+import { Icon } from "@oracle-code/ui/icon"
+import { ProviderIcon } from "@oracle-code/ui/provider-icon"
+import { IconButton } from "@oracle-code/ui/icon-button"
+import { Tooltip } from "@oracle-code/ui/tooltip"
+import { Collapsible } from "@oracle-code/ui/collapsible"
+import { DiffChanges } from "@oracle-code/ui/diff-changes"
+import { getFilename } from "@oracle-code/util/path"
+import { Select } from "@oracle-code/ui/select"
+import { DropdownMenu } from "@oracle-code/ui/dropdown-menu"
+import { Session, Project } from "@oracle-code/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import { createStore } from "solid-js/store"
 import {
@@ -30,9 +30,9 @@ import {
   useDragDropContext,
 } from "@thisbeyond/solid-dnd"
 import type { DragEvent, Transformer } from "@thisbeyond/solid-dnd"
-import { SelectDialog } from "@opencode-ai/ui/select-dialog"
-import { Tag } from "@opencode-ai/ui/tag"
-import { IconName } from "@opencode-ai/ui/icons/provider"
+import { SelectDialog } from "@oracle-code/ui/select-dialog"
+import { Tag } from "@oracle-code/ui/tag"
+import { IconName } from "@oracle-code/ui/icons/provider"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 
 export default function Layout(props: ParentProps) {
@@ -485,7 +485,7 @@ export default function Layout(props: ParentProps) {
                 <div class="rounded-md bg-background-stronger shadow-xs-border-base">
                   <div class="p-3 flex flex-col gap-2">
                     <div class="text-12-medium text-text-strong">Getting started</div>
-                    <div class="text-text-base">OpenCode includes free models so you can start immediately.</div>
+                    <div class="text-text-base">OracleCode includes free models so you can start immediately.</div>
                     <div class="text-text-base">Connect any provider to use models, inc. Claude, GPT, Gemini etc.</div>
                   </div>
                   <Tooltip placement="right" value="Connect provider" inactive={layout.sidebar.opened()}>
@@ -592,12 +592,12 @@ export default function Layout(props: ParentProps) {
                   // TODO: clean this up after we update icon in models.dev
                   classList={{
                     "text-icon-weak-base": true,
-                    "size-4 mx-0.5": i.id === "opencode",
-                    "size-5": i.id !== "opencode",
+                    "size-4 mx-0.5": i.id === "oracle-code",
+                    "size-5": i.id !== "oracle-code",
                   }}
                 />
                 <span>{i.name}</span>
-                <Show when={i.id === "opencode"}>
+                <Show when={i.id === "oracle-code"}>
                   <Tag>Recommended</Tag>
                 </Show>
                 <Show when={i.id === "anthropic"}>

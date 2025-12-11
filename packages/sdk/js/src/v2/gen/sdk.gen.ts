@@ -172,7 +172,7 @@ class HeyApiRegistry<T> {
   get(key?: string): T {
     const instance = this.instances.get(key ?? this.defaultKey)
     if (!instance) {
-      throw new Error(`No SDK client found. Create one with "new OpencodeClient()" to fix this error.`)
+      throw new Error(`No SDK client found. Create one with "new OracleCodeClient()" to fix this error.`)
     }
     return instance
   }
@@ -2562,12 +2562,12 @@ export class Event extends HeyApiClient {
   }
 }
 
-export class OpencodeClient extends HeyApiClient {
-  public static readonly __registry = new HeyApiRegistry<OpencodeClient>()
+export class OracleCodeClient extends HeyApiClient {
+  public static readonly __registry = new HeyApiRegistry<OracleCodeClient>()
 
   constructor(args?: { client?: Client; key?: string }) {
     super(args)
-    OpencodeClient.__registry.set(this, args?.key)
+    OracleCodeClient.__registry.set(this, args?.key)
   }
 
   global = new Global({ client: this.client })

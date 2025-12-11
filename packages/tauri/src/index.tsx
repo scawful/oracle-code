@@ -1,6 +1,6 @@
 // @refresh reload
 import { render } from "solid-js/web"
-import { App, PlatformProvider, Platform } from "@opencode-ai/desktop"
+import { App, PlatformProvider, Platform } from "@oracle-code/desktop"
 import { runUpdater } from "./updater"
 import { onMount } from "solid-js"
 import { open, save } from "@tauri-apps/plugin-dialog"
@@ -49,7 +49,7 @@ const platform: Platform = {
 
 render(() => {
   onMount(() => {
-    if (window.__OPENCODE__?.updaterEnabled) runUpdater()
+    if (window.__OCODE__?.updaterEnabled) runUpdater()
   })
 
   return (

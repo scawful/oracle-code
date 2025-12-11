@@ -3,13 +3,13 @@ title: Models
 description: Configuring an LLM provider and model.
 ---
 
-OpenCode uses the [AI SDK](https://ai-sdk.dev/) and [Models.dev](https://models.dev) to support for **75+ LLM providers** and it supports running local models.
+Oracle Code uses the [AI SDK](https://ai-sdk.dev/) and [Models.dev](https://models.dev) to support for **75+ LLM providers** and it supports running local models.
 
 ---
 
 ## Providers
 
-Most popular providers are preloaded by default. If you've added the credentials for a provider through the `/connect` command, they'll be available when you start OpenCode.
+Most popular providers are preloaded by default. If you've added the credentials for a provider through the `/connect` command, they'll be available when you start Oracle Code.
 
 Learn more about [providers](/docs/providers).
 
@@ -35,7 +35,7 @@ Consider using one of the models we recommend.
 
 However, there are only a few of them that are good at both generating code and tool calling.
 
-Here are several models that work well with OpenCode, in no particular order. (This is not an exhaustive list):
+Here are several models that work well with Oracle Code, in no particular order. (This is not an exhaustive list):
 
 - GPT 5.1
 - GPT 5.1 Codex
@@ -51,9 +51,9 @@ Here are several models that work well with OpenCode, in no particular order. (T
 ## Set a default
 
 To set one of these as the default model, you can set the `model` key in your
-OpenCode config.
+Oracle Code config.
 
-```json title="opencode.json" {3}
+```json title="oracle-code.json" {3}
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "lmstudio/google/gemma-3n-e4b"
@@ -70,7 +70,7 @@ If you've configured a [custom provider](/docs/providers#custom), the `provider_
 
 You can globally configure a model's options through the config.
 
-```jsonc title="opencode.jsonc" {7-12,19-24}
+```jsonc title="oracle-code.jsonc" {7-12,19-24}
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
@@ -109,11 +109,11 @@ You can also configure these options for any agents that you are using. The agen
 
 You can also define custom models that extend built-in ones and can optionally use specific options by referring to their id:
 
-```jsonc title="opencode.jsonc" {6-20}
+```jsonc title="oracle-code.jsonc" {6-20}
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "opencode": {
+    "oracle-code": {
       "models": {
         "gpt-5-high": {
           "id": "gpt-5",
@@ -141,13 +141,13 @@ You can also define custom models that extend built-in ones and can optionally u
 
 ## Loading models
 
-When OpenCode starts up, it checks for models in the following priority order:
+When Oracle Code starts up, it checks for models in the following priority order:
 
 1. The `--model` or `-m` command line flag. The format is the same as in the config file: `provider_id/model_id`.
 
-2. The model list in the OpenCode config.
+2. The model list in the Oracle Code config.
 
-   ```json title="opencode.json"
+   ```json title="oracle-code.json"
    {
      "$schema": "https://opencode.ai/config.json",
      "model": "anthropic/claude-sonnet-4-20250514"

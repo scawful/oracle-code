@@ -1,4 +1,4 @@
-import { useFilteredList } from "@opencode-ai/ui/hooks"
+import { useFilteredList } from "@oracle-code/ui/hooks"
 import { createEffect, on, Component, Show, For, onMount, onCleanup, Switch, Match, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createFocusSignal } from "@solid-primitives/active-element"
@@ -7,23 +7,23 @@ import { ContentPart, DEFAULT_PROMPT, isPromptEqual, Prompt, useSession } from "
 import { useSDK } from "@/context/sdk"
 import { useNavigate } from "@solidjs/router"
 import { useSync } from "@/context/sync"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { SelectDialog } from "@opencode-ai/ui/select-dialog"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Select } from "@opencode-ai/ui/select"
-import { Tag } from "@opencode-ai/ui/tag"
-import { getDirectory, getFilename } from "@opencode-ai/util/path"
+import { FileIcon } from "@oracle-code/ui/file-icon"
+import { SelectDialog } from "@oracle-code/ui/select-dialog"
+import { Button } from "@oracle-code/ui/button"
+import { Icon } from "@oracle-code/ui/icon"
+import { Tooltip } from "@oracle-code/ui/tooltip"
+import { IconButton } from "@oracle-code/ui/icon-button"
+import { Select } from "@oracle-code/ui/select"
+import { Tag } from "@oracle-code/ui/tag"
+import { getDirectory, getFilename } from "@oracle-code/util/path"
 import { useLayout } from "@/context/layout"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List, ListRef } from "@opencode-ai/ui/list"
-import { iife } from "@opencode-ai/util/iife"
-import { Input } from "@opencode-ai/ui/input"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { IconName } from "@opencode-ai/ui/icons/provider"
+import { Dialog } from "@oracle-code/ui/dialog"
+import { List, ListRef } from "@oracle-code/ui/list"
+import { iife } from "@oracle-code/util/iife"
+import { Input } from "@oracle-code/ui/input"
+import { ProviderIcon } from "@oracle-code/ui/provider-icon"
+import { IconName } from "@oracle-code/ui/icons/provider"
 
 interface PromptInputProps {
   class?: string
@@ -551,7 +551,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         <Dialog.Body>
                           <Input hidden type="text" class="opacity-0 size-0" autofocus onKeyDown={handleKey} />
                           <div class="flex flex-col gap-3 px-2.5">
-                            <div class="text-14-medium text-text-base px-2.5">Free models provided by OpenCode</div>
+                            <div class="text-14-medium text-text-base px-2.5">Free models provided by OracleCode</div>
                             <List
                               ref={(ref) => (listRef = ref)}
                               items={local.model.list()}
@@ -605,12 +605,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                                         // TODO: clean this up after we update icon in models.dev
                                         classList={{
                                           "text-icon-weak-base": true,
-                                          "size-4 mx-0.5": i.id === "opencode",
-                                          "size-5": i.id !== "opencode",
+                                          "size-4 mx-0.5": i.id === "oracle-code",
+                                          "size-5": i.id !== "oracle-code",
                                         }}
                                       />
                                       <span>{i.name}</span>
-                                      <Show when={i.id === "opencode"}>
+                                      <Show when={i.id === "oracle-code"}>
                                         <Tag>Recommended</Tag>
                                       </Show>
                                       <Show when={i.id === "anthropic"}>

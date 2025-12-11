@@ -13,7 +13,7 @@ export const workerPool = getOrCreateWorkerPoolSingleton({
     // poolSize: 8,
   },
   highlighterOptions: {
-    theme: "OpenCode",
+    theme: "OracleCode",
     // Optionally preload languages to avoid lazy-loading delays
     // langs: ["typescript", "javascript", "css", "html"],
   },

@@ -1,0 +1,19 @@
+Read a file from the Agentic File System (AFS).
+
+The AFS is a structured context directory (.context/) containing:
+- memory/: Long-term specs, architectural decisions (read_only)
+- knowledge/: Reference materials, external docs (read_only)
+- tools/: Automation scripts (executable)
+- scratchpad/: Working memory, plans (writable)
+- history/: Archived sessions (read_only)
+
+Reading is allowed from all directories regardless of their write policy.
+
+Parameters:
+- filePath: Path to the file. Can be:
+  - Relative to .context/ (e.g., "memory/AFS_SPEC.md")
+  - Absolute path within AFS
+- offset: Optional. Line number to start reading from (1-based). Default: 1.
+- limit: Optional. Number of lines to read. Default: 2000.
+
+Use afs_list first to discover available files, then afs_read to read their contents.
