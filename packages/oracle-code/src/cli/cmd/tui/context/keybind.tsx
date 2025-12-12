@@ -114,7 +114,11 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       }
 
       if (store.leader) {
-        const keyName = evt.name ?? ""
+        let keyName = evt.name ?? ""
+        // Handle shift+letter: convert to uppercase if shift is pressed with a single letter
+        if (evt.shift && keyName.length === 1 && /^[a-z]$/.test(keyName)) {
+          keyName = keyName.toUpperCase()
+        }
         // If which-key is registered, let it handle the key
         const handler = whichKeyHandler
         if (handler) {

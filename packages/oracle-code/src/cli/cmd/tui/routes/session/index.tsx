@@ -163,6 +163,12 @@ function SecondaryPaneArea(props: { sessionID: string }) {
  * 
  * Renders a pane tree structure, handling both leaf nodes (actual panes)
  * and split nodes (containers that divide space between children).
+ * 
+ * Important: Each level must properly propagate flex layout by ensuring
+ * child containers fill their parent space. The pattern is:
+ * - Split containers: flexGrow={1}, explicit width/height="100%"
+ * - Child wrappers: flexGrow based on ratio, flexBasis={0} for proper distribution
+ * - Leaf nodes: flexGrow={1} to fill the wrapper
  */
 function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
   const panes = usePanes()
@@ -174,11 +180,12 @@ function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
   }
 
   // Handle leaf node - render actual pane content
+  // The leaf must fill its parent container which already has the proper flex sizing
   if (props.node.type === "leaf") {
     const leaf = props.node
     const isActive = createMemo(() => panes.activeId === leaf.id)
     return (
-      <box flexGrow={1} width="100%" height="100%">
+      <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
         <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
       </box>
     )
@@ -196,6 +203,8 @@ function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
     <box
       flexDirection={isVertical ? "row" : "column"}
       flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
       width="100%"
       height="100%"
     >
@@ -204,9 +213,11 @@ function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
         flexGrow={firstFlex}
         flexShrink={1}
         flexBasis={0}
+        flexDirection={isVertical ? "column" : "row"}
         minWidth={isVertical ? 10 : undefined}
         minHeight={isVertical ? undefined : 3}
-        overflow="hidden"
+        width={isVertical ? undefined : "100%"}
+        height={isVertical ? "100%" : undefined}
       >
         <SecondaryPaneRenderer node={split.first} sessionID={props.sessionID} />
       </box>
@@ -224,9 +235,11 @@ function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
         flexGrow={secondFlex}
         flexShrink={1}
         flexBasis={0}
+        flexDirection={isVertical ? "column" : "row"}
         minWidth={isVertical ? 10 : undefined}
         minHeight={isVertical ? undefined : 3}
-        overflow="hidden"
+        width={isVertical ? undefined : "100%"}
+        height={isVertical ? "100%" : undefined}
       >
         <SecondaryPaneRenderer node={split.second} sessionID={props.sessionID} />
       </box>
@@ -1261,7 +1274,13 @@ export function Session() {
                 height={mainSplitDirection() === "vertical" ? "100%" : 1}
                 flexShrink={0}
               />
-              <box flexGrow={1 - mainFraction()} flexShrink={0} flexBasis={0} overflow="hidden">
+              <box
+                flexGrow={1 - mainFraction()}
+                flexShrink={1}
+                flexBasis={0}
+                width={mainSplitDirection() === "vertical" ? undefined : "100%"}
+                height={mainSplitDirection() === "vertical" ? "100%" : undefined}
+              >
                 <SecondaryPaneArea sessionID={route.sessionID} />
               </box>
             </Show>

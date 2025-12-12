@@ -2,6 +2,7 @@ import { Match, Switch, Show, createMemo, For } from "solid-js"
 import { usePanes, getActiveTab, type PaneLeaf, type PaneViewType, type PaneTab, type FloatingPane } from "@tui/context/panes"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
+import { useKeybind } from "@tui/context/keybind"
 import { TextAttributes } from "@opentui/core"
 
 // Import real view components
@@ -77,6 +78,10 @@ export function PaneView(props: PaneViewProps) {
   return (
     <box
       flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
+      width="100%"
+      height="100%"
       onMouseDown={() => panes.setActive(props.pane.id)}
       borderColor={borderColor()}
       border={["top", "bottom", "left", "right"]}
@@ -143,6 +148,7 @@ export function PaneView(props: PaneViewProps) {
 function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean }) {
   const { theme } = useTheme()
   const panes = usePanes()
+  const keybind = useKeybind()
 
   const getTabIcon = (viewType: PaneViewType): string => {
     const icons: Record<PaneViewType, string> = {
@@ -212,7 +218,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       <box flexGrow={1} />
       <Show when={props.isActive}>
         <box paddingRight={1}>
-          <text fg={theme.textMuted}>SPC t</text>
+          <text fg={theme.textMuted}>{keybind.print("leader")} t</text>
         </box>
       </Show>
     </box>
@@ -224,6 +230,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
  */
 function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximized?: boolean }) {
   const { theme } = useTheme()
+  const keybind = useKeybind()
 
   const viewLabel = createMemo(() => {
     const labels: Record<PaneViewType, string> = {
@@ -288,7 +295,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
           <text fg={theme.warning}>[MAX]</text>
         </Show>
         <Show when={props.isActive && !props.isMaximized}>
-          <text fg={theme.textMuted}>SPC w</text>
+          <text fg={theme.textMuted}>{keybind.print("leader")} w</text>
         </Show>
       </box>
     </box>
@@ -358,6 +365,7 @@ function SidebarPlaceholder() {
  */
 function OrchestratorPlaceholder() {
   const { theme } = useTheme()
+  const keybind = useKeybind()
 
   return (
     <box flexGrow={1} flexDirection="column" padding={1}>
@@ -375,7 +383,7 @@ function OrchestratorPlaceholder() {
         • Coordinate parallel tasks
       </text>
       <box marginTop={2}>
-        <text fg={theme.primary}>SPC b O</text>
+        <text fg={theme.primary}>{keybind.print("leader")} b O</text>
         <text fg={theme.textMuted}> to open in new pane</text>
       </box>
     </box>
@@ -498,6 +506,7 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
  */
 function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
   const { theme } = useTheme()
+  const keybind = useKeybind()
   const activeTab = createMemo(() => getActiveTab(props.pane))
 
   const icon = createMemo(() => {
@@ -552,7 +561,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       <box flexDirection="row" gap={1}>
         <text fg={theme.warning}>[FLOAT]</text>
         <Show when={props.isActive}>
-          <text fg={theme.textMuted}>SPC w f</text>
+          <text fg={theme.textMuted}>{keybind.print("leader")} w f</text>
         </Show>
       </box>
     </box>
