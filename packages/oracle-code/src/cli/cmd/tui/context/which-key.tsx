@@ -221,6 +221,16 @@ function buildCommandTree(): WhichKeyNode[] {
           { key: "g", label: "gate mode", action: "cognitive.triggers.gate" },
           { key: "p", label: "pending", action: "cognitive.triggers.pending" },
         ]},
+        { key: "h", label: "+hivemind", isGroup: true, children: [
+          { key: "h", label: "dashboard", action: "hivemind.dashboard" },
+          { key: "f", label: "fears", action: "hivemind.fears" },
+          { key: "s", label: "satisfactions", action: "hivemind.satisfactions" },
+          { key: "k", label: "knowledge", action: "hivemind.knowledge" },
+          { key: "d", label: "decisions", action: "hivemind.decisions" },
+          { key: "p", label: "preferences", action: "hivemind.preferences" },
+          { key: "c", label: "councils", action: "hivemind.councils" },
+          { key: "r", label: "refresh", action: "hivemind.refresh" },
+        ]},
       ],
     },
     {
