@@ -3,17 +3,19 @@
  *
  * This module implements the HAFS Cognitive Protocol for AI agents,
  * providing self-monitoring, goal tracking, epistemic state management,
- * and emotional valence tracking.
+ * emotional valence tracking, and cross-session shared learning.
  *
  * Key components:
  * - Metacognition: Spin detection, cognitive load, flow state, strategy tracking
  * - Goals: Goal hierarchy, conflict detection, focus management
  * - Epistemic: Knowledge tracking with confidence, assumptions, unknowns, contradictions
  * - Emotions: Emotional valence (fears, curiosities, satisfactions, frustrations)
+ * - Hivemind: Cross-session/cross-project shared learning with decay and council voting
+ * - AnalysisTriggers: Automatic subagent invocation triggers
  * - CognitiveIntegration: Hooks into session/tool processing
  *
  * Usage:
- *   import { Metacognition, Goals, Epistemic, Emotions, CognitiveIntegration } from '@/cognitive'
+ *   import { Metacognition, Goals, Epistemic, Emotions, Hivemind, CognitiveIntegration } from '@/cognitive'
  *
  *   // Initialize integration (call once at startup)
  *   await CognitiveIntegration.init()
@@ -35,11 +37,33 @@
  *
  *   // Get cognitive context for system prompt
  *   const context = await CognitiveIntegration.getPromptContext()
+ *
+ *   // Access hivemind shared learning
+ *   const hivemindState = await Hivemind.getState()
+ *   const fears = await Hivemind.getEntriesByCategory("fear")
+ *   await Hivemind.addEntry({ category: "knowledge", key: "api_version", value: "v2.1", ... })
  */
 
 export { Metacognition } from "./metacognition"
 export { Goals } from "./goals"
 export { Epistemic } from "./epistemic"
 export { Emotions } from "./emotions"
+export { Hivemind, HivemindStore, HivemindDecay } from "./hivemind"
 export { AnalysisTriggers } from "./analysis-triggers"
 export { CognitiveIntegration } from "./integration"
+
+// Re-export hivemind types for convenience
+export type {
+  HivemindState,
+  HivemindEntry,
+  HivemindManifest,
+  HivemindCategory,
+  HivemindScope,
+  EntryStatus,
+  PromotionRequest,
+  CouncilSession,
+  CouncilVote,
+  CouncilConfig,
+  DecayConfig,
+  DecayResult,
+} from "./hivemind"
