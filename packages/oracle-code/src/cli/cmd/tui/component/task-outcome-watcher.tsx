@@ -134,6 +134,30 @@ export function TaskOutcomeWatcher() {
     enqueue(queued)
   })
 
+  // Simple tool chains that shouldn't trigger outcome dialogs
+  const SIMPLE_TOOL_CHAINS = new Set([
+    "read",
+    "glob",
+    "grep",
+    "ls",
+    "afs_read",
+    "afs_list",
+    "state_read",
+    "hivemind_read",
+    "todoread",
+  ])
+
+  function isSimpleToolChain(toolNames: string[]): boolean {
+    // All tools are simple read-only operations
+    if (toolNames.every((name) => SIMPLE_TOOL_CHAINS.has(name))) return true
+
+    // Mixed read operations (e.g., glob + read, grep + read)
+    const uniqueTools = new Set(toolNames)
+    if (uniqueTools.size <= 2 && [...uniqueTools].every((t) => SIMPLE_TOOL_CHAINS.has(t))) return true
+
+    return false
+  }
+
   createEffect(() => {
     const messagesBySession = sync.data.message ?? {}
     const candidates: Array<{ sessionID: string; message: Message }> = []
@@ -149,6 +173,10 @@ export function TaskOutcomeWatcher() {
         if (toolParts.length < 2) continue
         const done = toolParts.every((p) => p.state.status === "completed" || p.state.status === "error")
         if (!done) continue
+
+        // Skip simple tool chains (multi-read, multi-glob, etc.)
+        const toolNames = toolParts.map((p) => p.tool)
+        if (isSimpleToolChain(toolNames)) continue
 
         candidates.push({ sessionID, message })
       }
