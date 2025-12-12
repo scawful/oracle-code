@@ -1,0 +1,25 @@
+Promote a piece of knowledge or experience to the Hivemind shared learning system.
+
+Use this tool to save learnings that should persist across sessions:
+- **fear**: Document pitfalls, anti-patterns, and things to avoid
+- **satisfaction**: Record approaches and patterns that work well
+- **knowledge**: Store validated facts and established information
+- **decision**: Document architectural and design decisions
+- **preference**: Save user or project preferences
+
+Parameters:
+- category: Required. Type of entry (fear, satisfaction, knowledge, decision, preference)
+- key: Required. Short identifier for the entry (e.g., "test_flakiness", "api_versioning")
+- value: Required. The actual content/description
+- confidence: Optional. How confident (0-1, default 0.8)
+- reason: Required. Why this should be promoted to the hivemind
+- scope: Optional. "project" (default) or "global" (cross-project)
+- tags: Optional. Array of tags for categorization
+
+Returns the created hivemind entry.
+
+Guidelines:
+- Use specific, actionable keys (not generic like "bug" or "issue")
+- Provide clear, concise values that will be useful in future sessions
+- Only promote genuinely useful learnings, not temporary observations
+- Golden entries are permanent; regular entries decay over time

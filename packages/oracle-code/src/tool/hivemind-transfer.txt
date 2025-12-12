@@ -1,0 +1,22 @@
+Export or import Hivemind entries for sharing between projects.
+
+Use this tool to:
+- Export hivemind entries to a file for backup or sharing
+- Import hivemind entries from another project
+- Create backups before major changes
+- Restore from backups
+
+Parameters:
+- action: Required. The operation to perform:
+  - "export": Export entries to a file
+  - "import": Import entries from a file
+  - "backup": Create a backup of current state
+  - "restore": Restore from a backup file
+- filePath: Required for export/import. Path to the file
+- scope: Optional for export. Which scope to export (project, global, or both)
+- conflictResolution: Optional for import. How to handle conflicts:
+  - "skip": Skip conflicting entries (default)
+  - "replace": Replace existing with imported
+  - "council": Invoke council for each conflict
+
+Returns status and count of entries affected.

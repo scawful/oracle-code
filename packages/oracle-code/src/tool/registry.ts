@@ -16,6 +16,10 @@ import { AfsWriteTool } from "./afs-write"
 import { PlanWriteTool } from "./plan-write"
 import { StateReadTool } from "./state-read"
 import { StateWriteTool } from "./state-write"
+import { HivemindReadTool } from "./hivemind-read"
+import { HivemindPromoteTool } from "./hivemind-promote"
+import { CouncilVoteTool } from "./council-vote"
+import { HivemindTransferTool } from "./hivemind-transfer"
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
@@ -111,6 +115,10 @@ export namespace ToolRegistry {
       PlanWriteTool,
       StateReadTool,
       StateWriteTool,
+      HivemindReadTool,
+      HivemindPromoteTool,
+      CouncilVoteTool,
+      HivemindTransferTool,
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...custom,
     ]

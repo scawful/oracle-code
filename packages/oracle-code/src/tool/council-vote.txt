@@ -1,0 +1,21 @@
+Invoke the Council voting system for hivemind conflict resolution or golden promotion.
+
+The Council is a multi-agent voting system that:
+- Resolves conflicts when values disagree
+- Decides whether decaying entries should become golden (permanent)
+- Promotes important project learnings to global scope
+
+Parameters:
+- purpose: Required. Why the council is being invoked:
+  - "conflict": Two values disagree and need resolution
+  - "decay_promotion": Entry is about to expire, vote on making it permanent
+  - "global_promotion": Entry should be promoted from project to global scope
+- entryKey: Required. The key of the entry being voted on
+- currentValue: Required. The current/existing value
+- proposedValue: Required. The proposed/new value (or same value for promotions)
+- contestReason: Required. Explanation of why council is needed
+
+The council will spawn multiple agents (default: explore, critic, general) to vote.
+If votes tie, a structured debate occurs. Results are audited to history/councils/.
+
+Returns the council session ID and immediate status.

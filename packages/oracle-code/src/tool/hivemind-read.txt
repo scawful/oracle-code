@@ -1,0 +1,23 @@
+Read shared learning from the Hivemind system.
+
+The Hivemind stores cross-session and cross-project knowledge:
+- **fears**: Known pitfalls, anti-patterns, and things to avoid
+- **satisfactions**: Approaches and patterns that work well
+- **knowledge**: Established facts and validated information
+- **decisions**: Past architectural and design decisions
+- **preferences**: User and project preferences
+
+Parameters:
+- category: (optional) Filter by category (fear, satisfaction, knowledge, decision, preference)
+- scope: (optional) Filter by scope (project, global)
+- key: (optional) Get a specific entry by key
+- status: (optional) Filter by status (active, decaying, golden, contested)
+- limit: (optional) Maximum entries to return (default: 20)
+
+Returns entries sorted by relevance (golden first, then by confidence).
+
+Use this tool to:
+- Check known pitfalls before starting a task
+- Review what approaches worked well in the past
+- Look up established facts and decisions
+- Understand project preferences
