@@ -12,7 +12,7 @@ export default function App() {
       explicitLinks={true}
       root={(props) => (
         <MetaProvider>
-          <Titleoracle-code</Title>
+          <Title>oracle-code</Title>
           <Meta name="description" content="OracleCode - The open source coding agent." />
           <Favicon />
           <Suspense>{props.children}</Suspense>

@@ -121,7 +121,7 @@ export default function Home() {
             <h3 data-component="title">homebrew</h3>
             <button data-copy data-slot="button">
               <span>
-                brew install <strongoracle-code</strong>
+                brew install <strong>oracle-code</strong>
               </span>
               <CopyStatus />
             </button>
