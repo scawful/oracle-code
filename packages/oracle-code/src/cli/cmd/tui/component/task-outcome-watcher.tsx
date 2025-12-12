@@ -1,6 +1,7 @@
 import { createEffect, createSignal, onMount } from "solid-js"
 import { useSync } from "../context/sync"
 import { useDialog } from "../ui/dialog"
+import { useToast } from "../ui/toast"
 import { DialogTaskOutcome } from "./dialog-task-outcome"
 import type { ToolPart, ToolStateCompleted, AssistantMessage, Message, Part, Session } from "@oracle-code/sdk/v2"
 import { AFS } from "@/afs"
@@ -18,6 +19,7 @@ type CompletedTaskPart = ToolPart & { state: ToolStateCompleted }
 export function TaskOutcomeWatcher() {
   const sync = useSync()
   const dialog = useDialog()
+  const toast = useToast()
   const [queue, setQueue] = createSignal<QueuedTask[]>([])
   const [busy, setBusy] = createSignal(false)
   const [recorded, setRecorded] = createSignal(new Set<string>())
@@ -361,17 +363,34 @@ export function TaskOutcomeWatcher() {
       const duration = Math.max(0, endedAt - createdAt)
 
       const parts = sync.data.part[message.id] ?? []
-      const toolNames = parts.filter((p): p is ToolPart => p.type === "tool").map((p) => p.tool)
+      const toolParts = parts.filter((p): p is ToolPart => p.type === "tool")
+      const toolNames = toolParts.map((p) => p.tool)
       const label = toolNames.length > 0 ? toolNames.join(" → ") : "tool chain"
 
       const errors = analyzeErrorsForMessage(sessionID, message.id, agentID)
-      const success = await DialogTaskOutcome.show(dialog, {
-        title: "Tool chain complete",
-        description: label,
-        errors,
-        tokens,
-        durationMs: duration,
-      })
+
+      // Tool-chain UX: avoid modal popups for common chains (read → edit, etc).
+      // Record an outcome automatically and notify via toast; review is available
+      // in the Outcomes pane.
+      const hadToolError = toolParts.some((p) => p.state.status === "error")
+      const success = !hadToolError && errors.length === 0
+
+      const issueCount = errors.length + (hadToolError ? 1 : 0)
+      if (issueCount > 0) {
+        toast.show({
+          title: "Tool chain review",
+          message: `${label} (${issueCount} issue${issueCount === 1 ? "" : "s"}) · review in SPC b u`,
+          variant: "warning",
+          duration: 5000,
+        })
+      } else {
+        toast.show({
+          title: "Tool chain complete",
+          message: `${label} · logged to outcomes (SPC b u)`,
+          variant: "info",
+          duration: 1500,
+        })
+      }
 
       const outcome = TaskTracking.createTrackedOutcome({
         sessionID,
