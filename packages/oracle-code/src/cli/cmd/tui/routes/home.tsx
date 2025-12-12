@@ -12,6 +12,7 @@ import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
 import { usePanes, type PaneNode, type SplitDirection } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
+import { PaneTreeRenderer } from "@tui/component/pane-container"
 import { useDialog } from "../ui/dialog"
 import { useKeybind } from "@tui/context/keybind"
 
@@ -185,66 +186,8 @@ export function Home() {
     return mainSecondarySplit()?.direction ?? ("vertical" as const)
   })
 
-  function SecondaryPaneRenderer(props: { node: PaneNode }) {
-    if (props.node.type === "leaf" && props.node.id === "main") return null
-    
-    if (props.node.type === "leaf") {
-      const leaf = props.node
-      const isActive = createMemo(() => panes.activeId === leaf.id)
-      return (
-        <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
-          <PaneView pane={leaf} sessionID={""} isActive={isActive()} />
-        </box>
-      )
-    }
-
-    const split = props.node
-    const isVertical = split.direction === "vertical"
-    const firstFlex = Math.round(split.ratio * 100)
-    const secondFlex = 100 - firstFlex
-
-    return (
-      <box
-        flexDirection={isVertical ? "row" : "column"}
-        flexGrow={1}
-        flexShrink={1}
-        flexBasis={0}
-        width="100%"
-        height="100%"
-      >
-        <box
-          flexGrow={firstFlex}
-          flexShrink={1}
-          flexBasis={0}
-          flexDirection={isVertical ? "column" : "row"}
-          minWidth={isVertical ? 10 : undefined}
-          minHeight={isVertical ? undefined : 3}
-          width={isVertical ? undefined : "100%"}
-          height={isVertical ? "100%" : undefined}
-        >
-          <SecondaryPaneRenderer node={split.first} />
-        </box>
-        <box
-          backgroundColor={theme.border}
-          width={isVertical ? 1 : "100%"}
-          height={isVertical ? "100%" : 1}
-          flexShrink={0}
-        />
-        <box
-          flexGrow={secondFlex}
-          flexShrink={1}
-          flexBasis={0}
-          flexDirection={isVertical ? "column" : "row"}
-          minWidth={isVertical ? 10 : undefined}
-          minHeight={isVertical ? undefined : 3}
-          width={isVertical ? undefined : "100%"}
-          height={isVertical ? "100%" : undefined}
-        >
-          <SecondaryPaneRenderer node={split.second} />
-        </box>
-      </box>
-    )
-  }
+  // Use the shared PaneTreeRenderer for secondary panes
+  // The secondaryRoot already excludes "main", so we can render directly
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -291,7 +234,7 @@ export function Home() {
             height={mainSplitDirection() === "vertical" ? "100%" : undefined}
           >
             <Show when={secondaryRoot()}>
-              {(root) => <SecondaryPaneRenderer node={root()} />}
+              {(root) => <PaneTreeRenderer node={root()} sessionID="" />}
             </Show>
           </box>
         </Show>

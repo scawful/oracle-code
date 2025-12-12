@@ -58,6 +58,7 @@ import { Sidebar } from "./sidebar"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { usePanes, type PaneNode, type PaneLeaf, type SplitDirection } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
+import { PaneTreeRenderer } from "@tui/component/pane-container"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "../../util/clipboard"
 import { Toast, useToast } from "../../ui/toast"
@@ -153,97 +154,8 @@ function SecondaryPaneArea(props: { sessionID: string }) {
 
   return (
     <Show when={secondaryRoot()}>
-      {(root) => <SecondaryPaneRenderer node={root()} sessionID={props.sessionID} />}
+      {(root) => <PaneTreeRenderer node={root()} sessionID={props.sessionID} />}
     </Show>
-  )
-}
-
-/**
- * Recursive renderer for secondary pane tree
- * 
- * Renders a pane tree structure, handling both leaf nodes (actual panes)
- * and split nodes (containers that divide space between children).
- * 
- * Important: Each level must properly propagate flex layout by ensuring
- * child containers fill their parent space. The pattern is:
- * - Split containers: flexGrow={1}, explicit width/height="100%"
- * - Child wrappers: flexGrow based on ratio, flexBasis={0} for proper distribution
- * - Leaf nodes: flexGrow={1} to fill the wrapper
- */
-function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
-  const panes = usePanes()
-  const { theme } = useTheme()
-
-  // Skip rendering the "main" pane (it's rendered separately)
-  if (props.node.type === "leaf" && props.node.id === "main") {
-    return null
-  }
-
-  // Handle leaf node - render actual pane content
-  // The leaf must fill its parent container which already has the proper flex sizing
-  if (props.node.type === "leaf") {
-    const leaf = props.node
-    const isActive = createMemo(() => panes.activeId === leaf.id)
-    return (
-      <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
-        <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
-      </box>
-    )
-  }
-
-  // Handle split node - divide space between two children
-  const split = props.node
-  const isVertical = split.direction === "vertical"
-  
-  // Calculate flex values - multiply by 100 for more precise integer ratios
-  const firstFlex = Math.round(split.ratio * 100)
-  const secondFlex = 100 - firstFlex
-
-  return (
-    <box
-      flexDirection={isVertical ? "row" : "column"}
-      flexGrow={1}
-      flexShrink={1}
-      flexBasis={0}
-      width="100%"
-      height="100%"
-    >
-      {/* First child pane */}
-      <box
-        flexGrow={firstFlex}
-        flexShrink={1}
-        flexBasis={0}
-        flexDirection={isVertical ? "column" : "row"}
-        minWidth={isVertical ? 10 : undefined}
-        minHeight={isVertical ? undefined : 3}
-        width={isVertical ? undefined : "100%"}
-        height={isVertical ? "100%" : undefined}
-      >
-        <SecondaryPaneRenderer node={split.first} sessionID={props.sessionID} />
-      </box>
-
-      {/* Divider line between panes */}
-      <box
-        backgroundColor={theme.border}
-        width={isVertical ? 1 : "100%"}
-        height={isVertical ? "100%" : 1}
-        flexShrink={0}
-      />
-
-      {/* Second child pane */}
-      <box
-        flexGrow={secondFlex}
-        flexShrink={1}
-        flexBasis={0}
-        flexDirection={isVertical ? "column" : "row"}
-        minWidth={isVertical ? 10 : undefined}
-        minHeight={isVertical ? undefined : 3}
-        width={isVertical ? undefined : "100%"}
-        height={isVertical ? "100%" : undefined}
-      >
-        <SecondaryPaneRenderer node={split.second} sessionID={props.sessionID} />
-      </box>
-    </box>
   )
 }
 

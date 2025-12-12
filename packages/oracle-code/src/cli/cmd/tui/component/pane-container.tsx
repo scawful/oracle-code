@@ -49,30 +49,57 @@ export function PaneContainer(props: PaneContainerProps) {
 
 /**
  * Recursive renderer for the pane tree
+ * 
+ * Handles both leaf nodes (actual panes) and split nodes (containers).
+ * Uses proper flex layout to ensure nested splits render correctly.
  */
-function PaneTreeRenderer(props: { node: PaneNode; sessionID: string }) {
+export function PaneTreeRenderer(props: { node: PaneNode; sessionID: string }) {
   const panes = usePanes()
   const { theme } = useTheme()
 
-  // Handle leaf node
+  // Handle leaf node - render actual pane content
   if (props.node.type === "leaf") {
     const leaf = props.node
     const isActive = createMemo(() => panes.activeId === leaf.id)
-    return <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
+    return (
+      <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
+        <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
+      </box>
+    )
   }
 
-  // Handle split node
+  // Handle split node - divide space between two children
   const split = props.node
   const isVertical = split.direction === "vertical"
+  
+  // Use integer flex values for more precise distribution
+  const firstFlex = Math.round(split.ratio * 100)
+  const secondFlex = 100 - firstFlex
 
   return (
-    <box flexDirection={isVertical ? "row" : "column"} flexGrow={1} width="100%" height="100%">
-      {/* First pane */}
-      <box flexGrow={split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+    <box
+      flexDirection={isVertical ? "row" : "column"}
+      flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
+      width="100%"
+      height="100%"
+    >
+      {/* First child pane */}
+      <box
+        flexGrow={firstFlex}
+        flexShrink={1}
+        flexBasis={0}
+        flexDirection={isVertical ? "column" : "row"}
+        minWidth={isVertical ? 10 : undefined}
+        minHeight={isVertical ? undefined : 3}
+        width={isVertical ? undefined : "100%"}
+        height={isVertical ? "100%" : undefined}
+      >
         <PaneTreeRenderer node={split.first} sessionID={props.sessionID} />
       </box>
 
-      {/* Split border/divider */}
+      {/* Divider line between panes */}
       <box
         backgroundColor={theme.border}
         width={isVertical ? 1 : "100%"}
@@ -80,8 +107,17 @@ function PaneTreeRenderer(props: { node: PaneNode; sessionID: string }) {
         flexShrink={0}
       />
 
-      {/* Second pane */}
-      <box flexGrow={1 - split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+      {/* Second child pane */}
+      <box
+        flexGrow={secondFlex}
+        flexShrink={1}
+        flexBasis={0}
+        flexDirection={isVertical ? "column" : "row"}
+        minWidth={isVertical ? 10 : undefined}
+        minHeight={isVertical ? undefined : 3}
+        width={isVertical ? undefined : "100%"}
+        height={isVertical ? "100%" : undefined}
+      >
         <PaneTreeRenderer node={split.second} sessionID={props.sessionID} />
       </box>
     </box>
