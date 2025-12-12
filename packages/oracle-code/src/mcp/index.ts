@@ -256,7 +256,7 @@ export namespace MCP {
           args,
           env: {
             ...process.env,
-            ...(cmd === "opencode" ? { BUN_BE_BUN: "1" } : {}),
+            ...(cmd === "opencode" || cmd === "ocode" || cmd === "oracle-code" ? { BUN_BE_BUN: "1" } : {}),
             ...mcp.environment,
           },
         }),

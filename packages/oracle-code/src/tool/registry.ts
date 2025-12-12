@@ -20,6 +20,7 @@ import { HivemindReadTool } from "./hivemind-read"
 import { HivemindPromoteTool } from "./hivemind-promote"
 import { CouncilVoteTool } from "./council-vote"
 import { HivemindTransferTool } from "./hivemind-transfer"
+import { HistorySearchTool } from "./history-search"
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
@@ -119,6 +120,7 @@ export namespace ToolRegistry {
       HivemindPromoteTool,
       CouncilVoteTool,
       HivemindTransferTool,
+      HistorySearchTool,
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...custom,
     ]

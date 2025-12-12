@@ -34,6 +34,7 @@ import type {
 } from "./hivemind"
 import { Instance } from "../project/instance"
 import { FileWatcher } from "../file/watcher"
+import { AdaptiveCritic, getCritic, type CriticTone, type CriticReview } from "../analysis"
 
 export namespace CognitiveIntegration {
   const log = Log.create({ service: "cognitive" })
@@ -1214,5 +1215,101 @@ export namespace CognitiveIntegration {
       log.error("error generating state.md export", { error: e })
       return null
     }
+  }
+
+  // =============
+  // Adaptive Critic Integration
+  // =============
+
+  /**
+   * Update the adaptive critic state based on current emotional state.
+   * Call this before requesting a critic review to ensure appropriate tone.
+   */
+  export async function updateCriticState(): Promise<CriticTone> {
+    try {
+      const root = await AFS.findRoot()
+      const critic = getCritic()
+
+      if (!root) {
+        return critic.currentTone
+      }
+
+      const emotionalState = await Emotions.read(root)
+      if (!emotionalState) {
+        return critic.currentTone
+      }
+
+      const summary = Emotions.getStatusSummary(emotionalState)
+      
+      // Update critic state with emotional context
+      const newTone = critic.updateState(
+        summary.anxietyLevel / 100, // Normalize to 0-1
+        summary.frustrationCount,
+        consecutiveFailures === 0 // Success if no recent failures
+      )
+
+      log.info("critic state updated", {
+        tone: newTone,
+        anxiety: summary.anxietyLevel,
+        frustrations: summary.frustrationCount,
+      })
+
+      return newTone
+    } catch (e) {
+      log.error("error updating critic state", { error: e })
+      return getCritic().currentTone
+    }
+  }
+
+  /**
+   * Get a critic prompt with the appropriate tone based on current state.
+   * Automatically updates critic state before generating prompt.
+   *
+   * @param content - The content to critique
+   * @returns Prompt string with appropriate tone prefix
+   */
+  export async function getCriticPrompt(content: string): Promise<string> {
+    await updateCriticState()
+    return getCritic().createPrompt(content)
+  }
+
+  /**
+   * Get the current critic tone.
+   */
+  export function getCurrentCriticTone(): CriticTone {
+    return getCritic().currentTone
+  }
+
+  /**
+   * Allow user to override the critic tone.
+   *
+   * @param tone - The tone to force, or undefined to clear override
+   */
+  export function setCriticToneOverride(tone: CriticTone | undefined): void {
+    getCritic().setUserOverride(tone)
+    log.info("critic tone override set", { tone })
+  }
+
+  /**
+   * Parse a critic LLM response into structured reviews.
+   *
+   * @param llmResponse - Raw LLM response text
+   * @returns Array of structured review findings
+   */
+  export function parseCriticReviews(llmResponse: string): CriticReview[] {
+    return getCritic().parseReviews(llmResponse)
+  }
+
+  /**
+   * Get the full critic state for debugging/display.
+   */
+  export function getCriticState(): {
+    currentTone: CriticTone
+    stableIterations: number
+    userOverride?: CriticTone
+    lastAnxiety: number
+    frustrationCount: number
+  } {
+    return getCritic().getState()
   }
 }

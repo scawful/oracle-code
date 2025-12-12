@@ -12,6 +12,7 @@ import { Vcs } from "./vcs"
 import { Log } from "@/util/log"
 import { ShareNext } from "@/share/share-next"
 import { CognitiveIntegration } from "@/cognitive"
+import { initHistoryIntegration } from "@/history"
 
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
@@ -26,6 +27,9 @@ export async function InstanceBootstrap() {
 
   // Initialize cognitive protocol (metacognition + goals)
   await CognitiveIntegration.init()
+
+  // Initialize history logging integration
+  await initHistoryIntegration()
 
   Bus.subscribe(Command.Event.Executed, async (payload) => {
     if (payload.properties.name === Command.Default.INIT) {

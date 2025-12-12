@@ -58,8 +58,10 @@ export function Home() {
   let prompt: PromptRef
   const syncPromptFocus = () => {
     if (!prompt) return
-    if (dialog.stack.length > 0) return
-    if (keybind.leader) return
+    if (dialog.stack.length > 0 || keybind.leader) {
+      if (prompt.focused) prompt.blur()
+      return
+    }
 
     if (panes.activeId !== "main") {
       if (prompt.focused) prompt.blur()
@@ -96,6 +98,28 @@ export function Home() {
     return root
   })
 
+  const mainSecondarySplit = createMemo(() => {
+    const root = panes.root
+    if (root.type !== "split") return null
+
+    const firstIsMain = root.first.type === "leaf" && root.first.id === "main"
+    const secondIsMain = root.second.type === "leaf" && root.second.id === "main"
+    if (!firstIsMain && !secondIsMain) return null
+
+    const mainRatio = firstIsMain ? root.ratio : 1 - root.ratio
+    return { direction: root.direction, mainRatio }
+  })
+
+  const mainFraction = createMemo(() => {
+    if (!hasSecondaryPanes()) return 1
+    return mainSecondarySplit()?.mainRatio ?? 0.6
+  })
+
+  const mainSplitDirection = createMemo(() => {
+    if (!hasSecondaryPanes()) return "vertical" as const
+    return mainSecondarySplit()?.direction ?? ("vertical" as const)
+  })
+
   function SecondaryPaneRenderer(props: { node: PaneNode }) {
     if (props.node.type === "leaf" && props.node.id === "main") return null
     if (props.node.type === "leaf") {
@@ -127,8 +151,21 @@ export function Home() {
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <box flexDirection="row" flexGrow={1} position="relative">
-        <box flexGrow={hasSecondaryPanes() ? 0.6 : 1} justifyContent="center" alignItems="center" paddingLeft={2} paddingRight={2} gap={1}>
+      <box
+        flexDirection={hasSecondaryPanes() ? (mainSplitDirection() === "horizontal" ? "column" : "row") : "row"}
+        flexGrow={1}
+        position="relative"
+      >
+        <box
+          flexGrow={hasSecondaryPanes() ? mainFraction() : 1}
+          flexShrink={0}
+          flexBasis={0}
+          justifyContent="center"
+          alignItems="center"
+          paddingLeft={2}
+          paddingRight={2}
+          gap={1}
+        >
           <Logo />
           <box width="100%" maxWidth={75} zIndex={1000} paddingTop={1}>
             <Prompt
@@ -143,8 +180,13 @@ export function Home() {
           <Toast />
         </box>
         <Show when={hasSecondaryPanes()}>
-          <box width={1} backgroundColor={theme.border} flexShrink={0} />
-          <box flexGrow={0.4}>
+          <box
+            backgroundColor={theme.border}
+            width={mainSplitDirection() === "vertical" ? 1 : "100%"}
+            height={mainSplitDirection() === "vertical" ? "100%" : 1}
+            flexShrink={0}
+          />
+          <box flexGrow={1 - mainFraction()} flexShrink={0} flexBasis={0} overflow="hidden">
             <Show when={secondaryRoot()}>
               {(root) => <SecondaryPaneRenderer node={root()} />}
             </Show>

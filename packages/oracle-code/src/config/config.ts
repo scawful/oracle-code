@@ -463,7 +463,7 @@ export namespace Config {
       agent_cycle_reverse: z.string().optional().default("shift+tab").describe("Previous agent"),
       analysis_cycle: z.string().optional().default("ctrl+a").describe("Cycle analysis modes"),
       analysis_cycle_reverse: z.string().optional().default("ctrl+shift+a").describe("Cycle analysis modes reverse"),
-      afs_browser: z.string().optional().default("ctrl+e").describe("Open AFS file browser"),
+      afs_browser: z.string().optional().default("none").describe("Open AFS file browser"),
       input_clear: z.string().optional().default("ctrl+c").describe("Clear input field"),
       input_paste: z.string().optional().default("ctrl+v").describe("Paste from clipboard"),
       input_submit: z.string().optional().default("return").describe("Submit input"),

@@ -309,8 +309,10 @@ export function Session() {
 
   const syncPromptFocus = () => {
     if (!prompt) return
-    if (dialog.stack.length > 0) return
-    if (keybind.leader) return
+    if (dialog.stack.length > 0 || keybind.leader) {
+      if (prompt.focused) prompt.blur()
+      return
+    }
     if (permissions().length > 0) {
       if (prompt.focused) prompt.blur()
       return
@@ -339,11 +341,39 @@ export function Session() {
   // Check if there are secondary panes (panes other than the main chat)
   const hasSecondaryPanes = createMemo(() => panes.hasSecondaryPanes)
 
+  // If the pane root is a split that directly separates main from the rest,
+  // use its direction/ratio to drive the on-screen layout so `SPC w /` and
+  // `SPC w -` behave like real vertical/horizontal splits.
+  const mainSecondarySplit = createMemo(() => {
+    const root = panes.root
+    if (root.type !== "split") return null
+
+    const firstIsMain = root.first.type === "leaf" && root.first.id === "main"
+    const secondIsMain = root.second.type === "leaf" && root.second.id === "main"
+    if (!firstIsMain && !secondIsMain) return null
+
+    const mainRatio = firstIsMain ? root.ratio : 1 - root.ratio
+    return {
+      direction: root.direction,
+      mainRatio,
+    }
+  })
+
+  const mainFraction = createMemo(() => {
+    if (!hasSecondaryPanes()) return 1
+    return mainSecondarySplit()?.mainRatio ?? 0.6
+  })
+
+  const mainSplitDirection = createMemo(() => {
+    if (!hasSecondaryPanes()) return "vertical" as const
+    return mainSecondarySplit()?.direction ?? ("vertical" as const)
+  })
+
   // When secondary panes are visible, adjust content width
   const paneContentWidth = createMemo(() => {
     if (!hasSecondaryPanes()) return contentWidth()
-    // When split, the main chat area takes ~60% by default
-    return Math.floor(contentWidth() * 0.6)
+    if (mainSplitDirection() === "horizontal") return contentWidth()
+    return Math.floor(contentWidth() * mainFraction())
   })
 
   function moveChild(direction: number) {
@@ -942,7 +972,7 @@ export function Session() {
     <context.Provider
       value={{
         get width() {
-          return contentWidth()
+          return paneContentWidth()
         },
         conceal,
         showThinking,
@@ -954,151 +984,173 @@ export function Session() {
       }}
     >
       <box position="relative" flexGrow={1}>
-        <box flexDirection="row">
-          {/* Main content area - either full width or split with secondary panes */}
-          <box flexGrow={hasSecondaryPanes() ? 0.6 : 1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
-            <Show when={session()}>
-              <Show when={!sidebarVisible()}>
-                <Header />
-              </Show>
-              <scrollbox
-                ref={(r) => (scroll = r)}
-                verticalScrollbarOptions={{
-                  paddingLeft: 1,
-                  visible: showScrollbar(),
-                  trackOptions: {
-                    backgroundColor: theme.backgroundElement,
-                    foregroundColor: theme.border,
-                  },
-                }}
-                stickyScroll={true}
-                stickyStart="bottom"
-                flexGrow={1}
-                scrollAcceleration={scrollAcceleration()}
-              >
-                <For each={messages()}>
-                  {(message, index) => (
-                    <Switch>
-                      <Match when={message.id === revert()?.messageID}>
-                        {(function () {
-                          const command = useCommandDialog()
-                          const [hover, setHover] = createSignal(false)
-                          const dialog = useDialog()
+        <box flexDirection="row" flexGrow={1} height="100%" overflow="hidden">
+          <box
+            flexGrow={1}
+            flexDirection={hasSecondaryPanes() ? (mainSplitDirection() === "horizontal" ? "column" : "row") : "row"}
+            height="100%"
+            overflow="hidden"
+          >
+            {/* Main content */}
+            <box
+              flexGrow={hasSecondaryPanes() ? mainFraction() : 1}
+              flexShrink={0}
+              flexBasis={0}
+              overflow="hidden"
+              paddingBottom={1}
+              paddingTop={1}
+              paddingLeft={2}
+              paddingRight={2}
+              gap={1}
+            >
+              <Show when={session()}>
+                <Show when={!sidebarVisible()}>
+                  <Header />
+                </Show>
+                <scrollbox
+                  ref={(r) => (scroll = r)}
+                  verticalScrollbarOptions={{
+                    paddingLeft: 1,
+                    visible: showScrollbar(),
+                    trackOptions: {
+                      backgroundColor: theme.backgroundElement,
+                      foregroundColor: theme.border,
+                    },
+                  }}
+                  stickyScroll={true}
+                  stickyStart="bottom"
+                  flexGrow={1}
+                  scrollAcceleration={scrollAcceleration()}
+                >
+                  <For each={messages()}>
+                    {(message, index) => (
+                      <Switch>
+                        <Match when={message.id === revert()?.messageID}>
+                          {(function () {
+                            const command = useCommandDialog()
+                            const [hover, setHover] = createSignal(false)
+                            const dialog = useDialog()
 
-                          const handleUnrevert = async () => {
-                            const confirmed = await DialogConfirm.show(
-                              dialog,
-                              "Confirm Redo",
-                              "Are you sure you want to restore the reverted messages?",
-                            )
-                            if (confirmed) {
-                              command.trigger("session.redo")
+                            const handleUnrevert = async () => {
+                              const confirmed = await DialogConfirm.show(
+                                dialog,
+                                "Confirm Redo",
+                                "Are you sure you want to restore the reverted messages?",
+                              )
+                              if (confirmed) {
+                                command.trigger("session.redo")
+                              }
                             }
-                          }
 
-                          return (
-                            <box
-                              onMouseOver={() => setHover(true)}
-                              onMouseOut={() => setHover(false)}
-                              onMouseUp={handleUnrevert}
-                              marginTop={1}
-                              flexShrink={0}
-                              border={["left"]}
-                              customBorderChars={SplitBorder.customBorderChars}
-                              borderColor={theme.backgroundPanel}
-                            >
+                            return (
                               <box
-                                paddingTop={1}
-                                paddingBottom={1}
-                                paddingLeft={2}
-                                backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                onMouseOver={() => setHover(true)}
+                                onMouseOut={() => setHover(false)}
+                                onMouseUp={handleUnrevert}
+                                marginTop={1}
+                                flexShrink={0}
+                                border={["left"]}
+                                customBorderChars={SplitBorder.customBorderChars}
+                                borderColor={theme.backgroundPanel}
                               >
-                                <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                                <text fg={theme.textMuted}>
-                                  <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
-                                  restore
-                                </text>
-                                <Show when={revert()!.diffFiles?.length}>
-                                  <box marginTop={1}>
-                                    <For each={revert()!.diffFiles}>
-                                      {(file) => (
-                                        <text fg={theme.text}>
-                                          {file.filename}
-                                          <Show when={file.additions > 0}>
-                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                          </Show>
-                                          <Show when={file.deletions > 0}>
-                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                          </Show>
-                                        </text>
-                                      )}
-                                    </For>
-                                  </box>
-                                </Show>
+                                <box
+                                  paddingTop={1}
+                                  paddingBottom={1}
+                                  paddingLeft={2}
+                                  backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                >
+                                  <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                  <text fg={theme.textMuted}>
+                                    <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
+                                    restore
+                                  </text>
+                                  <Show when={revert()!.diffFiles?.length}>
+                                    <box marginTop={1}>
+                                      <For each={revert()!.diffFiles}>
+                                        {(file) => (
+                                          <text fg={theme.text}>
+                                            {file.filename}
+                                            <Show when={file.additions > 0}>
+                                              <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                            </Show>
+                                            <Show when={file.deletions > 0}>
+                                              <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                            </Show>
+                                          </text>
+                                        )}
+                                      </For>
+                                    </box>
+                                  </Show>
+                                </box>
                               </box>
-                            </box>
-                          )
-                        })()}
-                      </Match>
-                      <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                        <></>
-                      </Match>
-                      <Match when={message.role === "user"}>
-                        <UserMessage
-                          index={index()}
-                          onMouseUp={() => {
-                            if (renderer.getSelection()?.getSelectedText()) return
-                            dialog.replace(() => (
-                              <DialogMessage
-                                messageID={message.id}
-                                sessionID={route.sessionID}
-                                setPrompt={(promptInfo) => prompt.set(promptInfo)}
-                              />
-                            ))
-                          }}
-                          message={message as UserMessage}
-                          parts={sync.data.part[message.id] ?? []}
-                          pending={pending()}
-                        />
-                      </Match>
-                      <Match when={message.role === "assistant"}>
-                        <AssistantMessage
-                          last={lastAssistant()?.id === message.id}
-                          message={message as AssistantMessage}
-                          parts={sync.data.part[message.id] ?? []}
-                        />
-                      </Match>
-                    </Switch>
-                  )}
-                </For>
-              </scrollbox>
-              <box flexShrink={0}>
-                <Prompt
-                  ref={(r) => {
-                    prompt = r
-                    promptRef.set(r)
-                    syncPromptFocus()
-                  }}
-                  disabled={permissions().length > 0}
-                  onSubmit={() => {
-                    toBottom()
-                  }}
-                  sessionID={route.sessionID}
-                />
-              </box>
-              <Show when={!sidebarVisible()}>
-                <Footer />
+                            )
+                          })()}
+                        </Match>
+                        <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                          <></>
+                        </Match>
+                        <Match when={message.role === "user"}>
+                          <UserMessage
+                            index={index()}
+                            onMouseUp={() => {
+                              if (renderer.getSelection()?.getSelectedText()) return
+                              dialog.replace(() => (
+                                <DialogMessage
+                                  messageID={message.id}
+                                  sessionID={route.sessionID}
+                                  setPrompt={(promptInfo) => prompt.set(promptInfo)}
+                                />
+                              ))
+                            }}
+                            message={message as UserMessage}
+                            parts={sync.data.part[message.id] ?? []}
+                            pending={pending()}
+                          />
+                        </Match>
+                        <Match when={message.role === "assistant"}>
+                          <AssistantMessage
+                            last={lastAssistant()?.id === message.id}
+                            message={message as AssistantMessage}
+                            parts={sync.data.part[message.id] ?? []}
+                          />
+                        </Match>
+                      </Switch>
+                    )}
+                  </For>
+                </scrollbox>
+                <box flexShrink={0}>
+                  <Prompt
+                    ref={(r) => {
+                      prompt = r
+                      promptRef.set(r)
+                      syncPromptFocus()
+                    }}
+                    disabled={permissions().length > 0}
+                    onSubmit={() => {
+                      toBottom()
+                    }}
+                    sessionID={route.sessionID}
+                  />
+                </box>
+                <Show when={!sidebarVisible()}>
+                  <Footer />
+                </Show>
               </Show>
-            </Show>
-            <Toast />
-          </box>
-          {/* Secondary pane area - shown when user creates splits via which-key */}
-          <Show when={hasSecondaryPanes()}>
-            <box width={1} backgroundColor={theme.border} flexShrink={0} />
-            <box flexGrow={0.4}>
-              <SecondaryPaneArea sessionID={route.sessionID} />
+              <Toast />
             </box>
-          </Show>
+
+            <Show when={hasSecondaryPanes()}>
+              <box
+                backgroundColor={theme.border}
+                width={mainSplitDirection() === "vertical" ? 1 : "100%"}
+                height={mainSplitDirection() === "vertical" ? "100%" : 1}
+                flexShrink={0}
+              />
+              <box flexGrow={1 - mainFraction()} flexShrink={0} flexBasis={0} overflow="hidden">
+                <SecondaryPaneArea sessionID={route.sessionID} />
+              </box>
+            </Show>
+          </box>
           <Show when={sidebarVisible()}>
             <Sidebar sessionID={route.sessionID} />
           </Show>

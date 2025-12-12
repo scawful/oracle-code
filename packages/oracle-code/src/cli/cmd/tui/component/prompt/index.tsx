@@ -691,16 +691,20 @@ export function Prompt(props: PromptProps) {
                 syncExtmarksWithPromptParts()
               }}
               keyBindings={textareaKeybindings()}
-              onKeyDown={async (e) => {
-                // Skip if keyboard is owned by another component (e.g., AFS browser)
-                if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
-                  e.preventDefault()
-                  return
-                }
-                if (keybind.match("input_clear", e) && store.prompt.input !== "") {
-                  input.clear()
-                  input.extmarks.clear()
-                  setStore("prompt", {
+	              onKeyDown={async (e) => {
+	                // Skip if keyboard is owned by another component (e.g., AFS browser)
+	                if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
+	                  // Don't consume keys while another component owns the keyboard
+	                  // or when a modal is open (let global handlers / owners run).
+	                  try {
+	                    input.blur()
+	                  } catch {}
+	                  return
+	                }
+	                if (keybind.match("input_clear", e) && store.prompt.input !== "") {
+	                  input.clear()
+	                  input.extmarks.clear()
+	                  setStore("prompt", {
                     input: "",
                     parts: [],
                   })
@@ -959,9 +963,6 @@ export function Prompt(props: PromptProps) {
                     >
                       {analysisMode.isActive ? analysisMode.modeInfo.shortName : "analysis"}
                     </span>
-                  </text>
-                  <text fg={theme.text}>
-                    {keybind.print("afs_browser" as any)} <span style={{ fg: theme.textMuted }}>files</span>
                   </text>
                   <text fg={theme.text}>
                     {keybind.print("agent_cycle")} <span style={{ fg: theme.textMuted }}>switch agent</span>
