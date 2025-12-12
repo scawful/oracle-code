@@ -69,6 +69,7 @@ import {
   DialogWorkspaceRename,
   DialogWorkspaceList,
 } from "./component/dialog-workspace"
+import { DialogHivemind } from "./component/dialog-hivemind"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -217,6 +218,7 @@ function WhichKeyConnector() {
   const keybind = useKeybind()
   const whichKey = useWhichKey()
   const command = useCommandDialog()
+  const dialog = useDialog()
 
   onMount(() => {
     // Wire up which-key to keybind
@@ -236,6 +238,33 @@ function WhichKeyConnector() {
     // Wire up which-key to command system for keybind triggers
     whichKey.setKeybindTrigger((key: string) => {
       command.trigger(key)
+    })
+
+    // Register Hivemind which-key action handlers
+    whichKey.registerAction("hivemind.dashboard", () => {
+      dialog.replace(() => <DialogHivemind />)
+    })
+    whichKey.registerAction("hivemind.fears", () => {
+      dialog.replace(() => <DialogHivemind initialTab="fears" />)
+    })
+    whichKey.registerAction("hivemind.satisfactions", () => {
+      dialog.replace(() => <DialogHivemind initialTab="satisfactions" />)
+    })
+    whichKey.registerAction("hivemind.knowledge", () => {
+      dialog.replace(() => <DialogHivemind initialTab="knowledge" />)
+    })
+    whichKey.registerAction("hivemind.decisions", () => {
+      dialog.replace(() => <DialogHivemind initialTab="decisions" />)
+    })
+    whichKey.registerAction("hivemind.preferences", () => {
+      dialog.replace(() => <DialogHivemind initialTab="preferences" />)
+    })
+    whichKey.registerAction("hivemind.councils", () => {
+      dialog.replace(() => <DialogHivemind initialTab="councils" />)
+    })
+    whichKey.registerAction("hivemind.refresh", () => {
+      // Refresh will be handled by the dialog itself when opened
+      dialog.replace(() => <DialogHivemind />)
     })
   })
 
@@ -797,6 +826,63 @@ function App() {
       category: "Workspace",
       onSelect: () => {
         dialog.replace(() => <DialogWorkspaceList />)
+      },
+    },
+    // Hivemind commands
+    {
+      title: "Hivemind dashboard",
+      value: "hivemind.dashboard",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind />)
+      },
+    },
+    {
+      title: "Hivemind fears",
+      value: "hivemind.fears",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="fears" />)
+      },
+    },
+    {
+      title: "Hivemind satisfactions",
+      value: "hivemind.satisfactions",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="satisfactions" />)
+      },
+    },
+    {
+      title: "Hivemind knowledge",
+      value: "hivemind.knowledge",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="knowledge" />)
+      },
+    },
+    {
+      title: "Hivemind decisions",
+      value: "hivemind.decisions",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="decisions" />)
+      },
+    },
+    {
+      title: "Hivemind preferences",
+      value: "hivemind.preferences",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="preferences" />)
+      },
+    },
+    {
+      title: "Hivemind councils",
+      value: "hivemind.councils",
+      category: "Hivemind",
+      onSelect: () => {
+        dialog.replace(() => <DialogHivemind initialTab="councils" />)
       },
     },
   ])
