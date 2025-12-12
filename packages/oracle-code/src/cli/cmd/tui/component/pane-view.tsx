@@ -97,7 +97,7 @@ export function PaneView(props: PaneViewProps) {
             <ChatView sessionID={props.sessionID} isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "afs"}>
-            <AFSView isActive={props.isActive} />
+            <AFSView paneId={props.pane.id} isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "tom"}>
             <ToMView isActive={props.isActive} />
@@ -399,7 +399,7 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
                   <ChatView sessionID={props.sessionID} isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "afs"}>
-                  <AFSView isActive={isActive()} />
+                  <AFSView paneId={floating.pane.id} isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "tom"}>
                   <ToMView isActive={isActive()} />

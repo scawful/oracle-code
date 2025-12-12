@@ -5,6 +5,9 @@ import { Show, For, createMemo, createSignal, createEffect, onCleanup } from "so
 import { createStore } from "solid-js/store"
 import type { AFS } from "@/afs"
 import * as path from "path"
+import { useDialog } from "../../ui/dialog"
+import { useKeyboardMode } from "../../context/keyboard-mode"
+import { useRenderer } from "@opentui/solid"
 
 /**
  * AFSView - AFS browser pane view
@@ -14,6 +17,8 @@ import * as path from "path"
  */
 
 export interface AFSViewProps {
+  /** Pane ID (used for keyboard ownership scoping) */
+  paneId: string
   /** Whether this pane is currently active/focused */
   isActive?: boolean
   /** Initial path to navigate to */
@@ -38,6 +43,10 @@ interface TreeItem {
 export function AFSView(props: AFSViewProps) {
   const afs = useAFS()
   const { theme } = useTheme()
+  const dialog = useDialog()
+  const keyboard = useKeyboardMode()
+  const renderer = useRenderer()
+  const ownerId = `afs-view:${props.paneId}`
 
   // View state
   const [viewMode, setViewMode] = createSignal<ViewMode>("tree")
@@ -69,8 +78,31 @@ export function AFSView(props: AFSViewProps) {
     }
   })
 
-  // TODO: Keyboard handling will be integrated in Phase 3
-  // when we properly wire up pane focus with keyboard mode context
+  // Acquire/release keyboard ownership when this pane is active.
+  // This allows vim-style navigation without fighting the main prompt input.
+  let ownsKeyboard = false
+  createEffect(() => {
+    const shouldOwn = Boolean(props.isActive) && dialog.stack.length === 0
+
+    if (shouldOwn && !ownsKeyboard) {
+      ownsKeyboard = true
+      // Ensure the main prompt isn't still capturing focus.
+      renderer.currentFocusedRenderable?.blur()
+      keyboard.acquire(ownerId, {
+        mode: "vim-navigation",
+        priority: 50,
+        onKey: (evt) => handleKeyboard(evt),
+      })
+    }
+
+    if (!shouldOwn && ownsKeyboard) {
+      ownsKeyboard = false
+      keyboard.release(ownerId)
+    }
+  })
+  onCleanup(() => {
+    if (ownsKeyboard) keyboard.release(ownerId)
+  })
 
   // Build flat tree items for navigation
   const treeItems = createMemo(() => {
@@ -300,13 +332,6 @@ export function AFSView(props: AFSViewProps) {
           setExpanded(toggleKey, !expanded[toggleKey])
         } else if (item.type === "file") {
           loadFile(item.path)
-        }
-        return true
-
-      case "space":
-        if (item?.type === "directory") {
-          const spaceKey = item.depth === 0 ? item.name : item.path
-          setExpanded(spaceKey, !expanded[spaceKey])
         }
         return true
     }
