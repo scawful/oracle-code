@@ -10,7 +10,7 @@ import { useDirectory } from "../context/directory"
 import { useRoute, useRouteData } from "@tui/context/route"
 import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
-import { usePanes, type PaneNode } from "@tui/context/panes"
+import { usePanes, type PaneNode, type SplitDirection } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
 import { useDialog } from "../ui/dialog"
 import { useKeybind } from "@tui/context/keybind"
@@ -90,24 +90,89 @@ export function Home() {
   })
   const directory = useDirectory()
 
+  /**
+   * Extract the secondary pane subtree, excluding "main".
+   * Handles arbitrarily nested trees.
+   */
   const secondaryRoot = createMemo(() => {
     const root = panes.root
     if (root.type === "leaf") return null
-    if (root.first.type === "leaf" && root.first.id === "main") return root.second
-    if (root.second.type === "leaf" && root.second.id === "main") return root.first
-    return root
+
+    function containsMain(node: PaneNode): boolean {
+      if (node.type === "leaf") return node.id === "main"
+      return containsMain(node.first) || containsMain(node.second)
+    }
+
+    function extractSecondary(node: PaneNode): PaneNode | null {
+      if (node.type === "leaf") {
+        return node.id === "main" ? null : node
+      }
+
+      const firstHasMain = containsMain(node.first)
+      const secondHasMain = containsMain(node.second)
+
+      if (firstHasMain && !secondHasMain) {
+        const firstSecondary = extractSecondary(node.first)
+        if (firstSecondary) {
+          return { ...node, first: firstSecondary }
+        }
+        return node.second
+      }
+
+      if (secondHasMain && !firstHasMain) {
+        const secondSecondary = extractSecondary(node.second)
+        if (secondSecondary) {
+          return { ...node, second: secondSecondary }
+        }
+        return node.first
+      }
+
+      if (firstHasMain && secondHasMain) {
+        const firstSec = extractSecondary(node.first)
+        const secondSec = extractSecondary(node.second)
+        if (firstSec && secondSec) {
+          return { ...node, first: firstSec, second: secondSec }
+        }
+        return firstSec || secondSec
+      }
+
+      return node
+    }
+
+    return extractSecondary(root)
   })
 
+  /**
+   * Find the split containing "main" and calculate cumulative ratio.
+   */
   const mainSecondarySplit = createMemo(() => {
     const root = panes.root
     if (root.type !== "split") return null
 
-    const firstIsMain = root.first.type === "leaf" && root.first.id === "main"
-    const secondIsMain = root.second.type === "leaf" && root.second.id === "main"
-    if (!firstIsMain && !secondIsMain) return null
+    function findMainSplit(
+      node: PaneNode,
+      cumulativeRatio: number
+    ): { direction: SplitDirection; mainRatio: number } | null {
+      if (node.type === "leaf") return null
 
-    const mainRatio = firstIsMain ? root.ratio : 1 - root.ratio
-    return { direction: root.direction, mainRatio }
+      const firstIsMain = node.first.type === "leaf" && node.first.id === "main"
+      const secondIsMain = node.second.type === "leaf" && node.second.id === "main"
+
+      if (firstIsMain) {
+        return { direction: node.direction, mainRatio: cumulativeRatio * node.ratio }
+      }
+
+      if (secondIsMain) {
+        return { direction: node.direction, mainRatio: cumulativeRatio * (1 - node.ratio) }
+      }
+
+      const firstResult = findMainSplit(node.first, cumulativeRatio * node.ratio)
+      if (firstResult) return firstResult
+
+      return findMainSplit(node.second, cumulativeRatio * (1 - node.ratio))
+    }
+
+    return findMainSplit(root, 1.0)
   })
 
   const mainFraction = createMemo(() => {
@@ -122,18 +187,41 @@ export function Home() {
 
   function SecondaryPaneRenderer(props: { node: PaneNode }) {
     if (props.node.type === "leaf" && props.node.id === "main") return null
+    
     if (props.node.type === "leaf") {
       const leaf = props.node
       const isActive = createMemo(() => panes.activeId === leaf.id)
-      return <PaneView pane={leaf} sessionID={""} isActive={isActive()} />
+      return (
+        <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
+          <PaneView pane={leaf} sessionID={""} isActive={isActive()} />
+        </box>
+      )
     }
 
     const split = props.node
     const isVertical = split.direction === "vertical"
+    const firstFlex = Math.round(split.ratio * 100)
+    const secondFlex = 100 - firstFlex
 
     return (
-      <box flexDirection={isVertical ? "row" : "column"} flexGrow={1} width="100%" height="100%">
-        <box flexGrow={split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+      <box
+        flexDirection={isVertical ? "row" : "column"}
+        flexGrow={1}
+        flexShrink={1}
+        flexBasis={0}
+        width="100%"
+        height="100%"
+      >
+        <box
+          flexGrow={firstFlex}
+          flexShrink={1}
+          flexBasis={0}
+          flexDirection={isVertical ? "column" : "row"}
+          minWidth={isVertical ? 10 : undefined}
+          minHeight={isVertical ? undefined : 3}
+          width={isVertical ? undefined : "100%"}
+          height={isVertical ? "100%" : undefined}
+        >
           <SecondaryPaneRenderer node={split.first} />
         </box>
         <box
@@ -142,7 +230,16 @@ export function Home() {
           height={isVertical ? "100%" : 1}
           flexShrink={0}
         />
-        <box flexGrow={1 - split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+        <box
+          flexGrow={secondFlex}
+          flexShrink={1}
+          flexBasis={0}
+          flexDirection={isVertical ? "column" : "row"}
+          minWidth={isVertical ? 10 : undefined}
+          minHeight={isVertical ? undefined : 3}
+          width={isVertical ? undefined : "100%"}
+          height={isVertical ? "100%" : undefined}
+        >
           <SecondaryPaneRenderer node={split.second} />
         </box>
       </box>
@@ -186,7 +283,13 @@ export function Home() {
             height={mainSplitDirection() === "vertical" ? "100%" : 1}
             flexShrink={0}
           />
-          <box flexGrow={1 - mainFraction()} flexShrink={0} flexBasis={0} overflow="hidden">
+          <box
+            flexGrow={1 - mainFraction()}
+            flexShrink={1}
+            flexBasis={0}
+            width={mainSplitDirection() === "vertical" ? undefined : "100%"}
+            height={mainSplitDirection() === "vertical" ? "100%" : undefined}
+          >
             <Show when={secondaryRoot()}>
               {(root) => <SecondaryPaneRenderer node={root()} />}
             </Show>
