@@ -165,6 +165,8 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "t", label: "timeline", keybind: "session_timeline" },
         { key: "r", label: "rename", action: "session.rename" },
         { key: "T", label: "tree", action: "session.tree" },
+        { key: "h", label: "share", keybind: "session_share" },
+        { key: "H", label: "unshare", keybind: "session_unshare" },
       ],
     },
     {
@@ -198,7 +200,8 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "e", label: "eval", action: "analysis.eval" },
         { key: "c", label: "critic", action: "analysis.critic" },
         { key: "E", label: "emotional", action: "analysis.emotional" },
-        { key: "n", label: "cycle", action: "analysis.cycle" },
+        { key: "n", label: "cycle next", keybind: "analysis_cycle" },
+        { key: "p", label: "cycle prev", keybind: "analysis_cycle_reverse" },
         { key: "g", label: "gate", action: "analysis.gate" },
       ],
     },
@@ -281,7 +284,8 @@ function buildCommandTree(): WhichKeyNode[] {
     },
     // Direct commands (no submenu)
     { key: "p", label: "commands", keybind: "command_list" },
-    { key: "t", label: "themes", keybind: "theme_list" },
+    { key: "T", label: "themes", keybind: "theme_list" },
+    { key: "S", label: "status", keybind: "status_view" },
     { key: "e", label: "editor", keybind: "editor_open" },
     { key: "q", label: "quit", keybind: "app_exit" },
     { key: "?", label: "help", action: "help.show" },
