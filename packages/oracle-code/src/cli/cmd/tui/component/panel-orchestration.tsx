@@ -1,4 +1,4 @@
-import { Show, createSignal, createMemo } from "solid-js"
+import { Show, createSignal, createMemo, createResource } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useAgents } from "../context/agents"
 import { useMetrics } from "../context/metrics"
@@ -7,6 +7,8 @@ import { useDialog } from "../ui/dialog"
 import { useOrchestration } from "../context/orchestration"
 import { DialogOrchestration } from "./dialog-orchestration"
 import { DialogAgentLanes } from "./dialog-agent-lanes"
+import { DialogHivemind } from "./dialog-hivemind"
+import { CognitiveIntegration } from "@/cognitive"
 
 /**
  * Compact orchestration panel for sidebar
@@ -70,6 +72,15 @@ export function OrchestrationPanel() {
   function openLanesDialog() {
     dialog.replace(() => <DialogAgentLanes />)
   }
+
+  function openHivemindDialog() {
+    dialog.replace(() => <DialogHivemind />)
+  }
+
+  // Load hivemind summary
+  const [hivemindSummary] = createResource(async () => {
+    return CognitiveIntegration.getHivemindSummary()
+  })
 
   return (
     <Show when={shouldShow()}>
@@ -181,6 +192,42 @@ export function OrchestrationPanel() {
               <text fg={theme.info}>[Dashboard]</text>
             </box>
           </box>
+
+          {/* Hivemind Section */}
+          <Show when={hivemindSummary()}>
+            <box marginTop={1}>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.text}>
+                  <b>Hivemind</b>
+                </text>
+                <text fg={theme.textMuted}>
+                  ({hivemindSummary()!.project.total} entries)
+                </text>
+              </box>
+              <box paddingLeft={1} flexDirection="row" gap={2}>
+                <text fg={theme.success}>★{hivemindSummary()!.project.golden}</text>
+                <Show when={hivemindSummary()!.project.decaying > 0}>
+                  <text fg={theme.warning}>◐{hivemindSummary()!.project.decaying}</text>
+                </Show>
+                <Show when={hivemindSummary()!.project.contested > 0}>
+                  <text fg={theme.error}>⚡{hivemindSummary()!.project.contested}</text>
+                </Show>
+                <Show when={hivemindSummary()!.project.councils > 0}>
+                  <text fg={theme.info}>⏳{hivemindSummary()!.project.councils}</text>
+                </Show>
+              </box>
+              <box
+                paddingLeft={1}
+                marginTop={1}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  openHivemindDialog()
+                }}
+              >
+                <text fg={theme.info}>[Hivemind Dashboard]</text>
+              </box>
+            </box>
+          </Show>
         </Show>
       </box>
     </Show>
