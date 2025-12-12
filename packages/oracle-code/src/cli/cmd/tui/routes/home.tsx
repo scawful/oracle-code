@@ -1,5 +1,5 @@
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import { createMemo, Match, onMount, Show, Switch } from "solid-js"
+import { createEffect, createMemo, Match, onMount, Show, Switch } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import { Logo } from "../component/logo"
 import { Locale } from "@/util/locale"
@@ -12,6 +12,8 @@ import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
 import { usePanes, type PaneNode } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
+import { useDialog } from "../ui/dialog"
+import { useKeybind } from "@tui/context/keybind"
 
 // TODO: what is the best way to do this?
 let once = false
@@ -22,6 +24,8 @@ export function Home() {
   const route = useRouteData("home")
   const promptRef = usePromptRef()
   const panes = usePanes()
+  const dialog = useDialog()
+  const keybind = useKeybind()
   const hasSecondaryPanes = createMemo(() => panes.hasSecondaryPanes)
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
   const mcpError = createMemo(() => {
@@ -52,6 +56,25 @@ export function Home() {
   )
 
   let prompt: PromptRef
+  const syncPromptFocus = () => {
+    if (!prompt) return
+    if (dialog.stack.length > 0) return
+    if (keybind.leader) return
+
+    if (panes.activeId !== "main") {
+      if (prompt.focused) prompt.blur()
+    } else {
+      if (!prompt.focused) prompt.focus()
+    }
+  }
+
+  createEffect(() => {
+    panes.activeId
+    dialog.stack.length
+    keybind.leader
+    syncPromptFocus()
+  })
+
   const args = useArgs()
   onMount(() => {
     if (once) return
@@ -112,6 +135,7 @@ export function Home() {
               ref={(r) => {
                 prompt = r
                 promptRef.set(r)
+                syncPromptFocus()
               }}
               hint={Hint}
             />

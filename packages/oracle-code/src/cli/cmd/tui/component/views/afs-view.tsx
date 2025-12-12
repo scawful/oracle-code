@@ -8,6 +8,7 @@ import * as path from "path"
 import { useDialog } from "../../ui/dialog"
 import { useKeyboardMode } from "../../context/keyboard-mode"
 import { useRenderer } from "@opentui/solid"
+import { usePanes } from "../../context/panes"
 
 /**
  * AFSView - AFS browser pane view
@@ -46,7 +47,17 @@ export function AFSView(props: AFSViewProps) {
   const dialog = useDialog()
   const keyboard = useKeyboardMode()
   const renderer = useRenderer()
+  const panes = usePanes()
   const ownerId = `afs-view:${props.paneId}`
+  const isPaneActive = createMemo(() => panes.activeId === props.paneId)
+  const isActive = createMemo(() => (props.isActive ?? isPaneActive()))
+
+  function focusPane() {
+    panes.setActive(props.paneId)
+    // Some inner renderables (e.g., scrollboxes) can steal focus on click and
+    // consume keyboard events before global handlers. Blur on next tick.
+    setTimeout(() => renderer.currentFocusedRenderable?.blur(), 0)
+  }
 
   // View state
   const [viewMode, setViewMode] = createSignal<ViewMode>("tree")
@@ -82,7 +93,7 @@ export function AFSView(props: AFSViewProps) {
   // This allows vim-style navigation without fighting the main prompt input.
   let ownsKeyboard = false
   createEffect(() => {
-    const shouldOwn = Boolean(props.isActive) && dialog.stack.length === 0
+    const shouldOwn = isActive() && dialog.stack.length === 0
 
     if (shouldOwn && !ownsKeyboard) {
       ownsKeyboard = true
@@ -454,7 +465,7 @@ export function AFSView(props: AFSViewProps) {
   }
 
   return (
-    <box flexGrow={1} flexDirection="column" overflow="hidden">
+    <box flexGrow={1} flexDirection="column" overflow="hidden" onMouseDown={focusPane}>
       <Show when={!afs.exists}>
         <box flexGrow={1} justifyContent="center" alignItems="center" padding={2}>
           <text fg={theme.warning}>AFS not initialized</text>
@@ -495,6 +506,7 @@ export function AFSView(props: AFSViewProps) {
                     paddingLeft={1}
                     paddingRight={1}
                     onMouseDown={() => {
+                      focusPane()
                       setCursorIndex(index())
                       if (item.type === "file") {
                         loadFile(item.path)

@@ -4,6 +4,7 @@ import { usePanes } from "../context/panes"
 import { useTheme } from "../context/theme"
 import { useToast } from "../ui/toast"
 import { useSDK } from "../context/sdk"
+import { useKV } from "../context/kv"
 import { Log } from "@/util/log"
 
 const log = Log.create({ service: "lane-split-view" })
@@ -37,14 +38,16 @@ export function LaneSplitViewController() {
   const panes = usePanes()
   const toast = useToast()
   const sdk = useSDK()
+  const kv = useKV()
 
   // Track subagents we've created panes for
   const [trackedSubagents, setTrackedSubagents] = createSignal<TrackedSubagent[]>([])
 
   // Settings for auto-split behavior
-  const [autoSplitEnabled, setAutoSplitEnabled] = createSignal(true)
-  const [autoCollapseEnabled, setAutoCollapseEnabled] = createSignal(true)
-  const [splitRatio] = createSignal(0.6) // Main chat gets 60%
+  const [autoSplitEnabled] = kv.signal("tui.lanes.auto_split", true)
+  const [autoCollapseEnabled] = kv.signal("tui.lanes.auto_collapse", true)
+  const [splitRatio] = kv.signal("tui.lanes.split_ratio", 0.6) // Main chat gets 60%
+  const [collapseDelayMs] = kv.signal("tui.lanes.collapse_delay_ms", 2000)
 
   // Get all subagent sessions
   const subagentSessions = createMemo(() => {
@@ -90,7 +93,7 @@ export function LaneSplitViewController() {
   // Monitor for completed subagents
   createEffect(
     on(completedSubagents, (completed) => {
-      if (!autoCollapseEnabled()) return
+      if (!autoSplitEnabled() || !autoCollapseEnabled()) return
 
       for (const subagent of completed) {
         log.info("subagent completed", { sessionId: subagent.sessionId })
@@ -99,7 +102,7 @@ export function LaneSplitViewController() {
         // Schedule pane collapse after a short delay (let user see result)
         setTimeout(() => {
           collapseSubagentPane(subagent.sessionId)
-        }, 2000) // 2 second delay to see final result
+        }, Math.max(0, collapseDelayMs()))
       }
     }),
   )
@@ -115,13 +118,16 @@ export function LaneSplitViewController() {
     // Create a vertical split with the subagent chat
     panes.split("vertical", "chat")
 
-    // Get the newly created pane ID
-    const leaves = panes.leaves
-    const newPane = leaves.find((p) => p.id !== "main")
-
-    if (newPane) {
+    const newPaneId = panes.activeId
+    if (newPaneId && newPaneId !== "main") {
       // Set the pane to show the subagent's session
-      panes.setView(newPane.id, "chat", { sessionID: sessionId })
+      panes.setView(newPaneId, "chat", { sessionID: sessionId })
+
+      // Apply a sensible default ratio: main chat 60%, side pane 40%
+      const desired = Math.max(0.1, Math.min(0.9, splitRatio()))
+      panes.setActive("main")
+      panes.resize(desired - 0.5)
+      panes.setActive("main")
 
       // Track this subagent
       setTrackedSubagents((prev) => [
@@ -129,7 +135,7 @@ export function LaneSplitViewController() {
         {
           sessionId,
           parentId,
-          paneId: newPane.id,
+          paneId: newPaneId,
           createdAt: Date.now(),
         },
       ])
@@ -145,7 +151,7 @@ export function LaneSplitViewController() {
         duration: 2000,
       })
 
-      log.info("created subagent pane", { sessionId, paneId: newPane.id })
+      log.info("created subagent pane", { sessionId, paneId: newPaneId })
     }
   }
 

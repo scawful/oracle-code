@@ -307,6 +307,30 @@ export function Session() {
   const local = useLocal()
   const panes = usePanes()
 
+  const syncPromptFocus = () => {
+    if (!prompt) return
+    if (dialog.stack.length > 0) return
+    if (keybind.leader) return
+    if (permissions().length > 0) {
+      if (prompt.focused) prompt.blur()
+      return
+    }
+
+    if (panes.activeId !== "main") {
+      if (prompt.focused) prompt.blur()
+    } else {
+      if (!prompt.focused) prompt.focus()
+    }
+  }
+
+  createEffect(() => {
+    panes.activeId
+    dialog.stack.length
+    keybind.leader
+    permissions().length
+    syncPromptFocus()
+  })
+
   // Load pane layout for this session
   createEffect(() => {
     panes.loadLayout(route.sessionID)
@@ -1053,6 +1077,7 @@ export function Session() {
                   ref={(r) => {
                     prompt = r
                     promptRef.set(r)
+                    syncPromptFocus()
                   }}
                   disabled={permissions().length > 0}
                   onSubmit={() => {

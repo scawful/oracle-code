@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "lastSync": "2025-12-12T18:24:24.410Z",
+  "contributors": [],
+  "globalEnabled": false,
+  "stats": {
+    "totalEntries": 0,
+    "entriesByCategory": {
+      "fear": 0,
+      "satisfaction": 0,
+      "knowledge": 0,
+      "decision": 0,
+      "preference": 0
+    },
+    "goldenCount": 0,
+    "decayingCount": 0,
+    "contestedCount": 0
+  },
+  "decay": {
+    "defaultRates": {
+      "fear": 0.1,
+      "satisfaction": 0.1,
+      "knowledge": 0,
+      "decision": 0.05,
+      "preference": 0
+    },
+    "checkIntervalMs": 3600000,
+    "warningThresholdDays": 7,
+    "goldenExempt": true,
+    "preferencesExempt": true
+  },
+  "council": {
+    "councilSize": 3,
+    "quorum": 2,
+    "threshold": 0.67,
+    "globalPromotionThreshold": 0.67,
+    "debateOnTie": true,
+    "councilAgents": [
+      "explore",
+      "critic",
+      "general"
+    ]
+  }
+}

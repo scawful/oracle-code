@@ -1,0 +1,33 @@
+{
+  "current_strategy": "incremental",
+  "strategy_effectiveness": 0.5,
+  "progress_status": "making_progress",
+  "spin_detection": {
+    "recent_actions": [],
+    "similar_action_count": 0,
+    "last_distinct_action_time": null,
+    "spinning_threshold": 4
+  },
+  "cognitive_load": {
+    "current": 0.0,
+    "warning_threshold": 0.8,
+    "items_in_focus": 0,
+    "max_recommended_items": 7
+  },
+  "help_seeking": {
+    "uncertainty_threshold": 0.3,
+    "current_uncertainty": 0.0,
+    "consecutive_failures": 0,
+    "failure_threshold": 2
+  },
+  "self_corrections": [],
+  "flow_state": false,
+  "flow_state_indicators": {
+    "min_progress_required": true,
+    "max_cognitive_load": 0.7,
+    "min_strategy_effectiveness": 0.6,
+    "max_frustration": 0.3,
+    "no_help_needed": true
+  },
+  "last_updated": "2025-12-12T12:14:22.521815"
+}

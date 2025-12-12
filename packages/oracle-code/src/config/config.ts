@@ -41,7 +41,7 @@ export namespace Config {
         result = mergeConfigWithPlugins(result, await loadFile(Flag.OCODE_CONFIG))
         log.debug("loaded custom config", { path: Flag.OCODE_CONFIG })    }
 
-    for (const file of ["oracle-code.jsonc", "oracle-code.json"]) {
+    for (const file of ["opencode.jsonc", "opencode.json", "oracle-code.jsonc", "oracle-code.json"]) {
       const found = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
       for (const resolved of found.toReversed()) {
         result = mergeConfigWithPlugins(result, await loadFile(resolved))
@@ -69,7 +69,7 @@ export namespace Config {
       Global.Path.config,
       ...(await Array.fromAsync(
         Filesystem.up({
-          targets: [".oracle-code"],
+          targets: [".oracle-code", ".opencode"],
           start: Instance.directory,
           stop: Instance.worktree,
         }),
@@ -84,8 +84,8 @@ export namespace Config {
     const promises: Promise<any>[] = []
     for (const dir of directories) {
       // if config dir is manually set, we want to respect it
-      if (dir.endsWith(".oracle-code") || dir === Flag.OCODE_CONFIG_DIR) {
-        for (const file of ["oracle-code.jsonc", "oracle-code.json"]) {
+      if (dir.endsWith(".oracle-code") || dir.endsWith(".opencode") || dir === Flag.OCODE_CONFIG_DIR) {
+        for (const file of ["opencode.jsonc", "opencode.json", "oracle-code.jsonc", "oracle-code.json"]) {
           log.debug(`loading config from ${path.join(dir, file)}`)
           result = mergeConfigWithPlugins(result, await loadFile(path.join(dir, file)))
           // to satisy the type checker
@@ -746,6 +746,8 @@ export namespace Config {
     let result: Info = pipe(
       {},
       mergeDeep(await loadFile(path.join(Global.Path.config, "config.json"))),
+      mergeDeep(await loadFile(path.join(Global.Path.config, "opencode.json"))),
+      mergeDeep(await loadFile(path.join(Global.Path.config, "opencode.jsonc"))),
       mergeDeep(await loadFile(path.join(Global.Path.config, "oracle-code.json"))),
       mergeDeep(await loadFile(path.join(Global.Path.config, "oracle-code.jsonc"))),
     )

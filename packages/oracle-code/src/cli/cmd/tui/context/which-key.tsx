@@ -110,6 +110,9 @@ function buildCommandTree(): WhichKeyNode[] {
         // Floating
         { key: "f", label: "float/dock", action: "window.float" },
         { key: "F", label: "close float", action: "window.float.close" },
+        // Subagent lanes
+        { key: "s", label: "toggle subagent panes", action: "window.lanes.toggle" },
+        { key: "c", label: "toggle subagent auto-close", action: "window.lanes.autoclose.toggle" },
       ],
     },
     {
@@ -122,6 +125,7 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "t", label: "ToM panel", action: "buffer.tom" },
         { key: "m", label: "metrics", action: "buffer.metrics" },
         { key: "g", label: "agents", action: "buffer.agents" },
+        { key: "u", label: "outcomes", action: "buffer.outcomes" },
         { key: "d", label: "diff view", action: "buffer.diff" },
         { key: "o", label: "todo", action: "buffer.todo" },
         { key: "s", label: "sidebar", action: "buffer.sidebar" },
@@ -230,6 +234,12 @@ function buildCommandTree(): WhichKeyNode[] {
           { key: "p", label: "preferences", action: "hivemind.preferences" },
           { key: "c", label: "councils", action: "hivemind.councils" },
           { key: "r", label: "refresh", action: "hivemind.refresh" },
+        ]},
+        { key: "o", label: "+outcomes", isGroup: true, children: [
+          { key: "i", label: "toast issues", action: "outcomes.toast_chain_issues.toggle" },
+          { key: "s", label: "toast success", action: "outcomes.toast_chain_success.toggle" },
+          { key: "I", label: "record issues", action: "outcomes.record_chain_issues.toggle" },
+          { key: "S", label: "record success", action: "outcomes.record_chain_success.toggle" },
         ]},
       ],
     },

@@ -105,7 +105,7 @@ Extract existing UI components into pane-compatible views.
 **Tasks:**
 - [x] Create `component/views/afs-view.tsx`
 - [x] Remove dialog wrapper, keep tree logic
-- [ ] Add keyboard navigation when pane is active (deferred to Phase 3)
+- [x] Add keyboard navigation when pane is active (keyboard ownership + focus blur; 2025-12-12)
 - [x] Sync with AFS context
 
 ### 2.3 ToMPanelView Component ✅

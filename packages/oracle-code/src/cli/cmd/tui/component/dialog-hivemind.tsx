@@ -1,4 +1,4 @@
-import { createMemo, createSignal, createResource, For, Show, onCleanup } from "solid-js"
+import { createEffect, createMemo, createSignal, createResource, For, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
@@ -70,7 +70,7 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
 
       case "j":
       case "down":
-        setCursorIndex((i) => i + 1)
+        setCursorIndex((i) => Math.min(i + 1, Math.max(0, currentEntries().length - 1)))
         break
 
       case "k":
@@ -137,6 +137,11 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
       case "councils": return state.councils as any[]
       default: return []
     }
+  })
+
+  createEffect(() => {
+    const max = Math.max(0, currentEntries().length - 1)
+    if (cursorIndex() > max) setCursorIndex(max)
   })
 
   // Summary stats

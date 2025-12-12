@@ -2,6 +2,7 @@ import { createEffect, createSignal, onMount } from "solid-js"
 import { useSync } from "../context/sync"
 import { useDialog } from "../ui/dialog"
 import { useToast } from "../ui/toast"
+import { useKV } from "../context/kv"
 import { DialogTaskOutcome } from "./dialog-task-outcome"
 import type { ToolPart, ToolStateCompleted, AssistantMessage, Message, Part, Session } from "@oracle-code/sdk/v2"
 import { AFS } from "@/afs"
@@ -20,6 +21,7 @@ export function TaskOutcomeWatcher() {
   const sync = useSync()
   const dialog = useDialog()
   const toast = useToast()
+  const kv = useKV()
   const [queue, setQueue] = createSignal<QueuedTask[]>([])
   const [busy, setBusy] = createSignal(false)
   const [recorded, setRecorded] = createSignal(new Set<string>())
@@ -375,37 +377,48 @@ export function TaskOutcomeWatcher() {
       const hadToolError = toolParts.some((p) => p.state.status === "error")
       const success = !hadToolError && errors.length === 0
 
+      const toastOnIssues = Boolean(kv.get("tui.outcomes.toast_chain_issues", true))
+      const toastOnSuccess = Boolean(kv.get("tui.outcomes.toast_chain_success", false))
+      const recordIssues = Boolean(kv.get("tui.outcomes.record_chain_issues", true))
+      const recordSuccess = Boolean(kv.get("tui.outcomes.record_chain_success", false))
+
       const issueCount = errors.length + (hadToolError ? 1 : 0)
+      const shouldRecord = issueCount > 0 ? recordIssues : recordSuccess
+
       if (issueCount > 0) {
-        toast.show({
-          title: "Tool chain review",
-          message: `${label} (${issueCount} issue${issueCount === 1 ? "" : "s"}) · review in SPC b u`,
-          variant: "warning",
-          duration: 5000,
-        })
-      } else {
+        if (toastOnIssues) {
+          toast.show({
+            title: "Tool chain review",
+            message: `${label} (${issueCount} issue${issueCount === 1 ? "" : "s"}) · ${shouldRecord ? "review in SPC b u" : "recording disabled"}`,
+            variant: "warning",
+            duration: 5000,
+          })
+        }
+      } else if (toastOnSuccess) {
         toast.show({
           title: "Tool chain complete",
-          message: `${label} · logged to outcomes (SPC b u)`,
+          message: `${label} · ${shouldRecord ? "logged to outcomes (SPC b u)" : "not logged"}`,
           variant: "info",
           duration: 1500,
         })
       }
 
-      const outcome = TaskTracking.createTrackedOutcome({
-        sessionID,
-        taskID: `chain:${message.id}`,
-        agentID,
-        agentName: agentID,
-        partnerIDs: undefined,
-        success,
-        tokens,
-        duration,
-        errors,
-        taskDescription: label,
-      })
+      if (shouldRecord) {
+        const outcome = TaskTracking.createTrackedOutcome({
+          sessionID,
+          taskID: `chain:${message.id}`,
+          agentID,
+          agentName: agentID,
+          partnerIDs: undefined,
+          success,
+          tokens,
+          duration,
+          errors,
+          taskDescription: label,
+        })
 
-      await TaskTracking.recordOutcome(root, outcome).catch(() => {})
+        await TaskTracking.recordOutcome(root, outcome).catch(() => {})
+      }
 
       const updated = new Set(recorded())
       updated.add(taskKey(current))

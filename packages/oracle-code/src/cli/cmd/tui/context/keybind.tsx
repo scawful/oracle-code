@@ -60,6 +60,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     }
 
     useKeyboard(async (evt) => {
+      if (evt.defaultPrevented) return
       if (!store.leader) {
         const leaderBindings = keybinds().leader ?? []
         const parsed = result.parse(evt)
@@ -84,11 +85,13 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
 
         if (isLeaderKey && !(isInputFocused && isPlainSpaceLeader && isPlainSpaceKey)) {
           leader(true)
+          evt.preventDefault()
           return
         }
       }
 
       if (store.leader) {
+        evt.preventDefault()
         const leaderBindings = keybinds().leader ?? []
         if (leaderBindings.length > 0) {
           const parsed = result.parse(evt)

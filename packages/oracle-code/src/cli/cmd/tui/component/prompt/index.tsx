@@ -382,31 +382,43 @@ export function Prompt(props: PromptProps) {
 
   props.ref?.({
     get focused() {
-      return input.focused
+      try {
+        return input.focused
+      } catch {
+        return false
+      }
     },
     get current() {
       return store.prompt
     },
     focus() {
-      input.focus()
+      try {
+        input.focus()
+      } catch {}
     },
     blur() {
-      input.blur()
+      try {
+        input.blur()
+      } catch {}
     },
     set(prompt) {
-      input.setText(prompt.input)
       setStore("prompt", prompt)
-      restoreExtmarksFromParts(prompt.parts)
-      input.gotoBufferEnd()
+      try {
+        input.setText(prompt.input)
+        restoreExtmarksFromParts(prompt.parts)
+        input.gotoBufferEnd()
+      } catch {}
     },
     reset() {
-      input.clear()
-      input.extmarks.clear()
       setStore("prompt", {
         input: "",
         parts: [],
       })
       setStore("extmarkToPartIndex", new Map())
+      try {
+        input.clear()
+        input.extmarks.clear()
+      } catch {}
     },
   })
 
@@ -711,7 +723,14 @@ export function Prompt(props: PromptProps) {
                     return
                   }
                 }
-                if (store.mode === "normal") autocomplete.onKeyDown(e)
+                if (store.mode === "normal") {
+                  if (e.name === "escape" && !autocomplete.visible) {
+                    input.blur()
+                    e.preventDefault()
+                    return
+                  }
+                  autocomplete.onKeyDown(e)
+                }
                 if (!autocomplete.visible) {
                   if (
                     (keybind.match("history_previous", e) && input.cursorOffset === 0) ||

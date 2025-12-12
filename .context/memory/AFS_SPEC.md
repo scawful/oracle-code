@@ -1,6 +1,6 @@
 # Agentic File System (AFS) Specification
 
-Adapted from `hafs` for `codewizard`.
+Adapted from `hafs` for `oracle-code`.
 
 ## Philosophy
 "Everything is Context." The file system is the shared brain between the User and the Agent Swarm.

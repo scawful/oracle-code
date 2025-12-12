@@ -1,4 +1,4 @@
-import { createStore, produce } from "solid-js/store"
+import { createStore, produce, unwrap } from "solid-js/store"
 import { createMemo, onMount, createEffect } from "solid-js"
 import { createSimpleContext } from "./helper"
 import { registerWhichKeyAction } from "./which-key"
@@ -36,6 +36,7 @@ export type PaneViewType =
   | "tom" // Theory of Mind panel
   | "metrics" // Metrics panel
   | "agents" // Agent overview
+  | "outcomes" // Tracked outcomes / heuristic issues
   | "diff" // Diff view
   | "todo" // Todo list
   | "sidebar" // Traditional sidebar view
@@ -87,17 +88,21 @@ export function getActiveTab(pane: PaneLeaf): PaneTab {
  * Migrate a legacy pane to the new tab structure
  */
 function migratePaneToTabs(pane: PaneLeaf): PaneLeaf {
-  if (pane.tabs && pane.tabs.length > 0) {
-    return pane // Already migrated
+  const raw = unwrap(pane) as PaneLeaf
+  if (raw.tabs && raw.tabs.length > 0) {
+    return {
+      ...raw,
+      tabs: raw.tabs.map((t) => ({ ...t })),
+    }
   }
   return {
     type: "leaf",
-    id: pane.id,
+    id: raw.id,
     tabs: [{
-      id: pane.id + "-tab-0",
-      viewType: pane.viewType || "chat",
-      sessionID: pane.sessionID,
-      metadata: pane.metadata,
+      id: raw.id + "-tab-0",
+      viewType: raw.viewType || "chat",
+      sessionID: raw.sessionID,
+      metadata: raw.metadata,
     }],
     activeTabIndex: 0,
   }
@@ -183,10 +188,24 @@ interface LeafWithBounds {
  * Find a pane by ID in the tree
  */
 function findPane(node: PaneNode, id: string): PaneNode | null {
-  if (node.id === id) return node
-  if (node.type === "split") {
-    return findPane(node.first, id) ?? findPane(node.second, id)
+  const stack: PaneNode[] = [node]
+  const visited = new Set<string>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    if (!current) continue
+
+    if (visited.has(current.id)) continue
+    visited.add(current.id)
+
+    if (current.id === id) return current
+    if (current.type === "split") {
+      // Search "first" before "second" for stable behavior
+      stack.push(current.second)
+      stack.push(current.first)
+    }
   }
+
   return null
 }
 
@@ -196,11 +215,27 @@ function findPane(node: PaneNode, id: string): PaneNode | null {
 function findParent(root: PaneNode, targetId: string): PaneSplit | null {
   if (root.type === "leaf") return null
 
-  if (root.first.id === targetId || root.second.id === targetId) {
-    return root
+  const stack: PaneNode[] = [root]
+  const visited = new Set<string>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    if (!current) continue
+
+    if (visited.has(current.id)) continue
+    visited.add(current.id)
+
+    if (current.type !== "split") continue
+
+    if (current.first.id === targetId || current.second.id === targetId) {
+      return current
+    }
+
+    stack.push(current.second)
+    stack.push(current.first)
   }
 
-  return findParent(root.first, targetId) ?? findParent(root.second, targetId)
+  return null
 }
 
 /**
@@ -538,11 +573,21 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
     /**
      * Split the active pane in a direction
      */
-    function split(direction: SplitDirection, viewType: PaneViewType = "chat") {
-      const activePane = findPane(store.root, store.activeId)
+    function split(direction: SplitDirection, viewType?: PaneViewType) {
+      const root = unwrap(store.root) as PaneNode
+      const activePane = findPane(root, store.activeId)
       if (!activePane || activePane.type !== "leaf") return
 
-      const nextViewType = viewType === "chat" && !currentSessionID ? "afs" : viewType
+      const migratedActivePane = migratePaneToTabs(activePane)
+      const activeTab = getActiveTab(migratedActivePane)
+
+      // Default UX: splitting the main chat creates a useful side-pane (AFS),
+      // otherwise we duplicate the current view unless an explicit viewType is provided.
+      const nextViewType = viewType ??
+        (migratedActivePane.id === "main" && activeTab.viewType === "chat"
+          ? "afs"
+          : activeTab.viewType)
+
       const newPaneId = generateId()
       const newTabId = newPaneId + "-tab-0"
       const newPane: PaneLeaf = {
@@ -551,12 +596,11 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         tabs: [{
           id: newTabId,
           viewType: nextViewType,
+          sessionID: nextViewType === activeTab.viewType ? activeTab.sessionID ?? currentSessionID ?? undefined : undefined,
+          metadata: nextViewType === activeTab.viewType ? activeTab.metadata : undefined,
         }],
         activeTabIndex: 0,
       }
-
-      // Migrate the existing pane to tabs if needed
-      const migratedActivePane = migratePaneToTabs(activePane)
 
       const newSplit: PaneSplit = {
         type: "split",
@@ -567,9 +611,10 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         second: newPane,
       }
 
-      setStore("root", replacePaneInTree(store.root, store.activeId, newSplit))
+      setStore("root", replacePaneInTree(root, store.activeId, newSplit))
+      if (store.maximized) setStore("maximized", null)
       setStore("activeId", newPaneId)
-      setStore("history", [...store.history, newPaneId])
+      setStore("history", [...store.history.filter((h) => h !== newPaneId), newPaneId])
       debouncedSave()
     }
 
@@ -578,31 +623,33 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
      */
     function close(paneId?: string) {
       const id = paneId ?? store.activeId
+      if (id === "main") return
+
+      const root = unwrap(store.root) as PaneNode
 
       // Can't close the last pane
-      if (store.root.type === "leaf" && store.root.id === id) return
+      if (root.type === "leaf" && root.id === id) return
 
-      const parent = findParent(store.root, id)
+      const parent = findParent(root, id)
       if (!parent) return
 
       const sibling = getSibling(parent, id)
 
-      // Replace parent with sibling
-      if (store.root.id === parent.id) {
-        // Parent is root
-        setStore("root", sibling)
-      } else {
-        setStore("root", replacePaneInTree(store.root, parent.id, sibling))
-      }
+      const nextRoot =
+        root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
+      setStore("root", nextRoot)
 
       // Update active to sibling (or its first leaf)
       const newActive = sibling.type === "leaf" ? sibling : findFirstLeaf(sibling)
       setStore("activeId", newActive.id)
+      if (store.maximized && !findPane(nextRoot, store.maximized)) {
+        setStore("maximized", null)
+      }
 
       // Remove from history
       setStore(
         "history",
-        store.history.filter((h) => h !== id),
+        [...store.history.filter((h) => h !== id && h !== newActive.id), newActive.id],
       )
       debouncedSave()
     }
@@ -636,6 +683,8 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       const pane = findPane(store.root, paneId)
       if (!pane || pane.type !== "leaf") return
 
+      const metadataSessionID = viewType === "chat" ? (metadata as any)?.sessionID : undefined
+
       setStore(
         "root",
         produce((root) => {
@@ -656,6 +705,9 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
             if (activeTab) {
               activeTab.viewType = viewType
               activeTab.metadata = metadata
+              if (typeof metadataSessionID === "string" && metadataSessionID.length > 0) {
+                activeTab.sessionID = metadataSessionID
+              }
             }
           }
         }),
@@ -808,14 +860,15 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
      * Float the active pane (remove from tree and add to floating array)
      */
     function floatPane() {
-      const pane = findPane(store.root, store.activeId)
+      const root = unwrap(store.root) as PaneNode
+      const pane = findPane(root, store.activeId)
       if (!pane || pane.type !== "leaf") return
 
       // Don't float the main pane
       if (pane.id === "main") return
 
       // Remove pane from tree
-      const parent = findParent(store.root, store.activeId)
+      const parent = findParent(root, store.activeId)
       if (!parent) return
 
       const sibling = getSibling(parent, pane.id)
@@ -830,11 +883,11 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         zIndex: store.nextZIndex,
       }
 
-      // Replace parent with sibling in tree
-      if (store.root.id === parent.id) {
-        setStore("root", sibling)
-      } else {
-        setStore("root", replacePaneInTree(store.root, parent.id, sibling))
+      const nextRoot =
+        root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
+      setStore("root", nextRoot)
+      if (store.maximized && !findPane(nextRoot, store.maximized)) {
+        setStore("maximized", null)
       }
 
       // Add to floating array
@@ -862,11 +915,15 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       const floatingPane = store.floating[floatingIndex]
 
       // Find where to dock - next to the currently active tree pane
-      // or create a new split if active is floating
-      const activeInTree = findPane(store.root, store.activeId)
-      const targetId = activeInTree?.type === "leaf" ? store.activeId : "main"
+      // or fall back to the last non-floating pane in history.
+      const root = unwrap(store.root) as PaneNode
+      const activeInTree = findPane(root, store.activeId)
+      const targetId =
+        activeInTree?.type === "leaf"
+          ? store.activeId
+          : store.history.findLast((hid) => findPane(root, hid)?.type === "leaf") ?? "main"
 
-      const targetPane = findPane(store.root, targetId)
+      const targetPane = findPane(root, targetId)
       if (!targetPane || targetPane.type !== "leaf") return
 
       // Create a new split with the docked pane
@@ -875,12 +932,16 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         id: generateId(),
         direction: "vertical",
         ratio: 0.5,
-        first: { ...targetPane },
-        second: floatingPane.pane,
+        first: migratePaneToTabs(targetPane),
+        second: migratePaneToTabs(floatingPane.pane),
       }
 
       // Replace target with split
-      setStore("root", replacePaneInTree(store.root, targetId, newSplit))
+      const nextRoot = replacePaneInTree(root, targetId, newSplit)
+      setStore("root", nextRoot)
+      if (store.maximized && !findPane(nextRoot, store.maximized)) {
+        setStore("maximized", null)
+      }
 
       // Remove from floating array
       setStore(
@@ -889,6 +950,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       )
 
       setStore("activeId", floatingPane.pane.id)
+      setStore("history", [...store.history.filter((h) => h !== floatingPane.pane.id), floatingPane.pane.id])
       debouncedSave()
     }
 
@@ -1124,7 +1186,8 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
      * Balance all pane sizes
      */
     function balance() {
-      setStore("root", balanceRatios(store.root))
+      const root = unwrap(store.root) as PaneNode
+      setStore("root", balanceRatios(root))
       debouncedSave()
     }
 
@@ -1132,12 +1195,32 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
      * Close all panes except the active one
      */
     function only() {
-      const active = findPane(store.root, store.activeId)
+      const root = unwrap(store.root) as PaneNode
+      const active = findPane(root, store.activeId)
       if (!active || active.type !== "leaf") return
 
-      setStore("root", { ...active })
+      // "main" is a virtual pane; we never want to remove it from the tree.
+      // This closes all secondary panes while keeping the active one.
+      if (active.id === "main") {
+        setStore("root", createPaneLeaf("main", "chat"))
+        setStore("activeId", "main")
+        setStore("history", ["main"])
+        setStore("maximized", null)
+        debouncedSave()
+        return
+      }
+
+      setStore("root", {
+        type: "split",
+        id: generateId(),
+        direction: "vertical",
+        ratio: 0.6,
+        first: createPaneLeaf("main", "chat"),
+        second: migratePaneToTabs(active),
+      })
       setStore("maximized", null)
-      setStore("history", [active.id])
+      setStore("activeId", active.id)
+      setStore("history", ["main", active.id])
       debouncedSave()
     }
 
@@ -1376,6 +1459,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       registerWhichKeyAction("buffer.tom", () => setView(store.activeId, "tom"))
       registerWhichKeyAction("buffer.metrics", () => setView(store.activeId, "metrics"))
       registerWhichKeyAction("buffer.agents", () => setView(store.activeId, "agents"))
+      registerWhichKeyAction("buffer.outcomes", () => setView(store.activeId, "outcomes"))
       registerWhichKeyAction("buffer.diff", () => setView(store.activeId, "diff"))
       registerWhichKeyAction("buffer.todo", () => setView(store.activeId, "todo"))
       registerWhichKeyAction("buffer.sidebar", () => setView(store.activeId, "sidebar"))

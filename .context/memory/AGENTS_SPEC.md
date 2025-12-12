@@ -1,6 +1,6 @@
 # Swarm Intelligence Specification
 
-Adapted from `hafs` and `halext-code` for `codewizard`.
+Adapted from `hafs` and `halext-code` for `oracle-code`.
 
 ## Theory of Mind
 We are collaborators, not just User and Assistant.
@@ -9,7 +9,7 @@ We are collaborators, not just User and Assistant.
 - **Common Ground:** Periodically sync on the state of the world (Shared Context).
 
 ## Agent Roles
-Agents within the `codewizard` swarm assume specific roles to optimize collaboration.
+Agents within the `oracle-code` swarm assume specific roles to optimize collaboration.
 
 ### 1. GENERAL (The Coordinator)
 - **Focus:** Orchestration, user interaction, routing.

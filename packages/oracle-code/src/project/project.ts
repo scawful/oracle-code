@@ -113,7 +113,24 @@ export namespace Project {
 
       return {
         id: "global",
-        worktree: "/",
+        worktree: await iife(async () => {
+          // For non-git directories, pick a reasonable "project root" without ever
+          // defaulting to "/" (which is too broad and breaks project scoping).
+          // Priority: AFS root → config file → config directory → current directory.
+          const findNearest = async (targets: string[]) => {
+            const matches = Filesystem.up({ targets, start: directory })
+            const found = await matches.next().then((x) => x.value)
+            await matches.return()
+            return found ? path.dirname(found) : undefined
+          }
+
+          return (
+            (await findNearest([".context"])) ??
+            (await findNearest(["oracle-code.jsonc", "oracle-code.json", "opencode.jsonc", "opencode.json"])) ??
+            (await findNearest([".oracle-code", ".opencode"])) ??
+            directory
+          )
+        }),
         vcs: Info.shape.vcs.parse(Flag.OCODE_FAKE_VCS),
       }
     })

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "fears": [
+    {
+      "id": "fear-edit-without-reading",
+      "trigger": {
+        "keywords": [
+          "edit",
+          "patch",
+          "change"
+        ],
+        "pattern": "making changes without reviewing existing context"
+      },
+      "concern": "Accidental breakage from acting without context",
+      "mitigation": "Read relevant files first, then make minimal changes with tests.",
+      "learned_from": []
+    }
+  ]
+}

@@ -40,6 +40,7 @@ export const PrCommand = cmd({
           await $`gh pr view ${prNumber} --json headRepository,headRepositoryOwner,isCrossRepository,headRefName,body`.nothrow()
 
         let sessionId: string | undefined
+        const cli = Bun.which("ocode") ? "ocode" : "opencode"
 
         if (prInfoResult.exitCode === 0) {
           const prInfoText = prInfoResult.text()
@@ -69,10 +70,10 @@ export const PrCommand = cmd({
               const sessionMatch = prInfo.body.match(/https:\/\/opencode\.ai\/s\/([a-zA-Z0-9_-]+)/)
               if (sessionMatch) {
                 const sessionUrl = sessionMatch[0]
-                UI.println(`Found opencode session: ${sessionUrl}`)
-                UI.println(`Importing session...`)
+                UI.println(`Found session: ${sessionUrl}`)
+                UI.println("Importing session…")
 
-                const importResult = await $`opencode import ${sessionUrl}`.nothrow()
+                const importResult = await $`${cli} import ${sessionUrl}`.nothrow()
                 if (importResult.exitCode === 0) {
                   const importOutput = importResult.text().trim()
                   // Extract session ID from the output (format: "Imported session: <session-id>")
@@ -89,23 +90,23 @@ export const PrCommand = cmd({
 
         UI.println(`Successfully checked out PR #${prNumber} as branch '${localBranchName}'`)
         UI.println()
-        UI.println("Starting opencode...")
+        UI.println(`Starting ${cli}...`)
         UI.println()
 
-        // Launch opencode TUI with session ID if available
+        // Launch TUI with session ID if available
         const { spawn } = await import("child_process")
-        const opencodeArgs = sessionId ? ["-s", sessionId] : []
-        const opencodeProcess = spawn("opencode", opencodeArgs, {
+        const cliArgs = sessionId ? ["-s", sessionId] : []
+        const child = spawn(cli, cliArgs, {
           stdio: "inherit",
           cwd: process.cwd(),
         })
 
         await new Promise<void>((resolve, reject) => {
-          opencodeProcess.on("exit", (code) => {
+          child.on("exit", (code) => {
             if (code === 0) resolve()
-            else reject(new Error(`opencode exited with code ${code}`))
+            else reject(new Error(`${cli} exited with code ${code}`))
           })
-          opencodeProcess.on("error", reject)
+          child.on("error", reject)
         })
       },
     })

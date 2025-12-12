@@ -31,19 +31,35 @@ export const { use: useKeyboardMode, provider: KeyboardModeProvider } = createSi
       activeOwner: null,
     })
 
-    // Global keyboard listener that dispatches to active owner
-    useKeyboard((evt) => {
-      if (store.activeOwner) {
-        const owner = store.owners.find((o) => o.id === store.activeOwner)
-        if (owner) {
-          owner.onKey({
-            name: evt.name,
-            ctrl: evt.ctrl,
-            shift: evt.shift,
-            meta: evt.meta,
-          })
+    function computeActiveOwner(owners: KeyboardOwner[]): string | null {
+      if (owners.length === 0) return null
+      let best: KeyboardOwner | null = null
+      for (const owner of owners) {
+        if (!best) {
+          best = owner
+          continue
+        }
+        // Prefer higher priority; tie-break by recency (later in list wins).
+        if (owner.priority > best.priority || owner.priority === best.priority) {
+          best = owner
         }
       }
+      return best?.id ?? null
+    }
+
+    // Global keyboard listener that dispatches to active owner
+    useKeyboard((evt) => {
+      if (evt.defaultPrevented) return
+      if (!store.activeOwner) return
+      const owner = store.owners.find((o) => o.id === store.activeOwner)
+      if (!owner) return
+      const handled = owner.onKey({
+        name: evt.name,
+        ctrl: evt.ctrl,
+        shift: evt.shift,
+        meta: evt.meta,
+      })
+      if (handled) evt.preventDefault()
     })
 
     return {
@@ -54,8 +70,9 @@ export const { use: useKeyboardMode, provider: KeyboardModeProvider } = createSi
        */
       acquire(id: string, config: Omit<KeyboardOwner, "id">) {
         const owner: KeyboardOwner = { id, ...config }
-        setStore("owners", [...store.owners, owner])
-        setStore("activeOwner", id)
+        const nextOwners = [...store.owners.filter((o) => o.id !== id), owner]
+        setStore("owners", nextOwners)
+        setStore("activeOwner", computeActiveOwner(nextOwners))
       },
 
       /**
@@ -64,8 +81,7 @@ export const { use: useKeyboardMode, provider: KeyboardModeProvider } = createSi
       release(id: string) {
         const filtered = store.owners.filter((o) => o.id !== id)
         setStore("owners", filtered)
-        const next = filtered[filtered.length - 1]
-        setStore("activeOwner", next?.id ?? null)
+        setStore("activeOwner", computeActiveOwner(filtered))
       },
 
       /**

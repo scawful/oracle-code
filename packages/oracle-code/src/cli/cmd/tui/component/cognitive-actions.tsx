@@ -3,6 +3,7 @@ import { registerWhichKeyAction } from "../context/which-key"
 import { useAnalysisMode } from "../context/analysis-mode"
 import { useAnalysisGate } from "../context/analysis-gate"
 import { useCognitive } from "../context/cognitive"
+import { useKV } from "../context/kv"
 import { useToast } from "../ui/toast"
 
 /**
@@ -15,9 +16,78 @@ export function CognitiveActionsConnector() {
   const analysisMode = useAnalysisMode()
   const analysisGate = useAnalysisGate()
   const cognitive = useCognitive()
+  const kv = useKV()
   const toast = useToast()
 
   onMount(() => {
+    // Lane split (subagent panes) settings
+    registerWhichKeyAction("window.lanes.toggle", () => {
+      const current = Boolean(kv.get("tui.lanes.auto_split", true))
+      const next = !current
+      kv.set("tui.lanes.auto_split", next)
+      toast.show({
+        message: `Subagent panes: ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
+    registerWhichKeyAction("window.lanes.autoclose.toggle", () => {
+      const current = Boolean(kv.get("tui.lanes.auto_collapse", true))
+      const next = !current
+      kv.set("tui.lanes.auto_collapse", next)
+      toast.show({
+        message: `Subagent auto-close: ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
+    // Outcomes / heuristic UX settings
+    registerWhichKeyAction("outcomes.toast_chain_issues.toggle", () => {
+      const current = Boolean(kv.get("tui.outcomes.toast_chain_issues", true))
+      const next = !current
+      kv.set("tui.outcomes.toast_chain_issues", next)
+      toast.show({
+        message: `Chain toasts (issues): ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
+    registerWhichKeyAction("outcomes.toast_chain_success.toggle", () => {
+      const current = Boolean(kv.get("tui.outcomes.toast_chain_success", false))
+      const next = !current
+      kv.set("tui.outcomes.toast_chain_success", next)
+      toast.show({
+        message: `Chain toasts (success): ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
+    registerWhichKeyAction("outcomes.record_chain_issues.toggle", () => {
+      const current = Boolean(kv.get("tui.outcomes.record_chain_issues", true))
+      const next = !current
+      kv.set("tui.outcomes.record_chain_issues", next)
+      toast.show({
+        message: `Record chains (issues): ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
+    registerWhichKeyAction("outcomes.record_chain_success.toggle", () => {
+      const current = Boolean(kv.get("tui.outcomes.record_chain_success", false))
+      const next = !current
+      kv.set("tui.outcomes.record_chain_success", next)
+      toast.show({
+        message: `Record chains (success): ${next ? "ON" : "OFF"}`,
+        variant: next ? "success" : "info",
+        duration: 2000,
+      })
+    })
+
     // Analysis mode toggles
     registerWhichKeyAction("analysis.tom", () => {
       analysisMode.toggle("tom")

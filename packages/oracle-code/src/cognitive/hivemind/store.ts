@@ -14,6 +14,7 @@ import { ulid } from "ulid"
 import { Bus } from "../../bus"
 import { BusEvent } from "../../bus/bus-event"
 import { AFS } from "../../afs"
+import { Log } from "../../util/log"
 import {
   HivemindState,
   HivemindEntry,
@@ -28,6 +29,8 @@ import {
 } from "./types"
 
 export namespace HivemindStore {
+  const log = Log.create({ service: "hivemind-store" })
+
   // =============
   // Constants
   // =============
@@ -147,13 +150,99 @@ export namespace HivemindStore {
   // File I/O
   // =============
 
-  async function readJsonFile<T>(filePath: string, schema: { parse: (data: unknown) => T }): Promise<T> {
+  type SafeParseResult<T> = {
+    value: T
+    rewrite: boolean
+  }
+
+  async function backupCorruptFile(filePath: string, raw: string): Promise<string | null> {
     try {
-      const content = await fs.readFile(filePath, "utf-8")
-      return schema.parse(JSON.parse(content))
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+      const backupPath = `${filePath}.bak.${stamp}`
+      await fs.writeFile(backupPath, raw)
+      return backupPath
+    } catch {
+      return null
+    }
+  }
+
+  function parseManifest(data: unknown): SafeParseResult<z.infer<typeof HivemindManifest>> {
+    const parsed = HivemindManifest.safeParse(data)
+    if (parsed.success) return { value: parsed.data, rewrite: false }
+
+    const source = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>
+    const candidate = {
+      ...source,
+      lastSync: typeof source.lastSync === "string" ? source.lastSync : new Date().toISOString(),
+    }
+    const repaired = HivemindManifest.safeParse(candidate)
+    if (repaired.success) return { value: repaired.data, rewrite: true }
+
+    return { value: HivemindManifest.parse({ lastSync: new Date().toISOString() }), rewrite: true }
+  }
+
+  function parseArrayOf<T extends z.ZodTypeAny>(itemSchema: T, data: unknown): SafeParseResult<Array<z.infer<T>>> {
+    const arraySchema = z.array(itemSchema)
+    const parsed = arraySchema.safeParse(data)
+    if (parsed.success) return { value: parsed.data, rewrite: false }
+    if (!Array.isArray(data)) return { value: [], rewrite: true }
+
+    const valid: Array<z.infer<T>> = []
+    for (const item of data) {
+      const res = itemSchema.safeParse(item)
+      if (res.success) valid.push(res.data)
+    }
+
+    return { value: valid, rewrite: true }
+  }
+
+  async function readJsonFileSafe<T>(
+    filePath: string,
+    parser: (data: unknown) => SafeParseResult<T>,
+    fallback: () => T,
+  ): Promise<T> {
+    let raw: string
+    try {
+      raw = await fs.readFile(filePath, "utf-8")
     } catch (error) {
-      // Return default based on schema - let caller handle
-      throw error
+      const value = fallback()
+      await writeJsonFile(filePath, value).catch(() => {})
+      return value
+    }
+
+    let json: unknown
+    try {
+      json = JSON.parse(raw)
+    } catch (error) {
+      const value = fallback()
+      const backupPath = await backupCorruptFile(filePath, raw)
+      log.error("invalid JSON in hivemind file; resetting", {
+        filePath,
+        backupPath,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await writeJsonFile(filePath, value).catch(() => {})
+      return value
+    }
+
+    try {
+      const parsed = parser(json)
+      if (parsed.rewrite) {
+        const backupPath = await backupCorruptFile(filePath, raw)
+        log.warn("invalid data in hivemind file; rewriting with sanitized content", { filePath, backupPath })
+        await writeJsonFile(filePath, parsed.value).catch(() => {})
+      }
+      return parsed.value
+    } catch (error) {
+      const value = fallback()
+      const backupPath = await backupCorruptFile(filePath, raw)
+      log.error("failed to parse hivemind file; resetting", {
+        filePath,
+        backupPath,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await writeJsonFile(filePath, value).catch(() => {})
+      return value
     }
   }
 
@@ -177,14 +266,18 @@ export namespace HivemindStore {
 
     const [fears, satisfactions, knowledge, decisions, preferences, pending, councils, manifest] =
       await Promise.all([
-        readJsonFile(path.join(dir, FILES.fears), { parse: (d) => HivemindEntry.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.satisfactions), { parse: (d) => HivemindEntry.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.knowledge), { parse: (d) => HivemindEntry.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.decisions), { parse: (d) => HivemindEntry.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.preferences), { parse: (d) => HivemindEntry.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.pending), { parse: (d) => PromotionRequest.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.councils), { parse: (d) => CouncilSession.array().parse(d) }),
-        readJsonFile(path.join(dir, FILES.manifest), HivemindManifest),
+        readJsonFileSafe(path.join(dir, FILES.fears), (d) => parseArrayOf(HivemindEntry, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.satisfactions), (d) => parseArrayOf(HivemindEntry, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.knowledge), (d) => parseArrayOf(HivemindEntry, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.decisions), (d) => parseArrayOf(HivemindEntry, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.preferences), (d) => parseArrayOf(HivemindEntry, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.pending), (d) => parseArrayOf(PromotionRequest, d), () => []),
+        readJsonFileSafe(path.join(dir, FILES.councils), (d) => parseArrayOf(CouncilSession, d), () => []),
+        readJsonFileSafe(
+          path.join(dir, FILES.manifest),
+          (d) => parseManifest(d),
+          () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
+        ),
       ])
 
     return {
@@ -375,9 +468,7 @@ export namespace HivemindStore {
     const arrayKey = categoryToArrayKey[fullEntry.category]
     const filePath = path.join(dir, FILES[arrayKey])
 
-    const entries = await readJsonFile(filePath, {
-      parse: (d) => HivemindEntry.array().parse(d),
-    })
+    const entries = await readJsonFileSafe(filePath, (d) => parseArrayOf(HivemindEntry, d), () => [])
     entries.push(fullEntry)
     await writeJsonFile(filePath, entries)
 
@@ -407,9 +498,7 @@ export namespace HivemindStore {
     const arrayKey = categoryToArrayKey[existing.category]
     const filePath = path.join(dir, FILES[arrayKey])
 
-    const entries = await readJsonFile(filePath, {
-      parse: (d) => HivemindEntry.array().parse(d),
-    })
+    const entries = await readJsonFileSafe(filePath, (d) => parseArrayOf(HivemindEntry, d), () => [])
 
     const index = entries.findIndex((e) => e.id === id)
     if (index === -1) return null
@@ -441,9 +530,7 @@ export namespace HivemindStore {
     const arrayKey = categoryToArrayKey[existing.category]
     const filePath = path.join(dir, FILES[arrayKey])
 
-    const entries = await readJsonFile(filePath, {
-      parse: (d) => HivemindEntry.array().parse(d),
-    })
+    const entries = await readJsonFileSafe(filePath, (d) => parseArrayOf(HivemindEntry, d), () => [])
 
     const filtered = entries.filter((e) => e.id !== id)
     if (filtered.length === entries.length) return false
@@ -531,7 +618,11 @@ export namespace HivemindStore {
     // Update project manifest
     const dir = await getProjectRoot(contextRoot)
     const manifestPath = path.join(dir, FILES.manifest)
-    const manifest = await readJsonFile(manifestPath, HivemindManifest)
+    const manifest = await readJsonFileSafe(
+      manifestPath,
+      (d) => parseManifest(d),
+      () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
+    )
 
     manifest.globalEnabled = true
     manifest.lastSync = new Date().toISOString()
@@ -547,7 +638,11 @@ export namespace HivemindStore {
   export async function disableGlobal(contextRoot?: string): Promise<void> {
     const dir = await getProjectRoot(contextRoot)
     const manifestPath = path.join(dir, FILES.manifest)
-    const manifest = await readJsonFile(manifestPath, HivemindManifest)
+    const manifest = await readJsonFileSafe(
+      manifestPath,
+      (d) => parseManifest(d),
+      () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
+    )
 
     manifest.globalEnabled = false
     manifest.lastSync = new Date().toISOString()
@@ -578,9 +673,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot()
     const filePath = path.join(dir, FILES.pending)
 
-    const pending = await readJsonFile(filePath, {
-      parse: (d) => PromotionRequest.array().parse(d),
-    })
+    const pending = await readJsonFileSafe(filePath, (d) => parseArrayOf(PromotionRequest, d), () => [])
     pending.push(fullRequest)
     await writeJsonFile(filePath, pending)
 
@@ -602,9 +695,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot(contextRoot)
     const filePath = path.join(dir, FILES.pending)
 
-    const pending = await readJsonFile(filePath, {
-      parse: (d) => PromotionRequest.array().parse(d),
-    })
+    const pending = await readJsonFileSafe(filePath, (d) => parseArrayOf(PromotionRequest, d), () => [])
 
     const index = pending.findIndex((p) => p.id === requestId)
     if (index === -1) return null
@@ -656,9 +747,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot(contextRoot)
     const filePath = path.join(dir, FILES.pending)
 
-    const pending = await readJsonFile(filePath, {
-      parse: (d) => PromotionRequest.array().parse(d),
-    })
+    const pending = await readJsonFileSafe(filePath, (d) => parseArrayOf(PromotionRequest, d), () => [])
 
     const index = pending.findIndex((p) => p.id === requestId)
     if (index === -1) return
@@ -676,9 +765,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot(contextRoot)
     const filePath = path.join(dir, FILES.pending)
 
-    const pending = await readJsonFile(filePath, {
-      parse: (d) => PromotionRequest.array().parse(d),
-    })
+    const pending = await readJsonFileSafe(filePath, (d) => parseArrayOf(PromotionRequest, d), () => [])
 
     return pending.filter((p) => p.status === "pending")
   }
@@ -697,9 +784,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot(contextRoot)
     const filePath = path.join(dir, FILES.councils)
 
-    const councils = await readJsonFile(filePath, {
-      parse: (d) => CouncilSession.array().parse(d),
-    })
+    const councils = await readJsonFileSafe(filePath, (d) => parseArrayOf(CouncilSession, d), () => [])
 
     const index = councils.findIndex((c) => c.id === session.id)
     if (index === -1) {
@@ -718,9 +803,7 @@ export namespace HivemindStore {
     const dir = await getProjectRoot(contextRoot)
     const filePath = path.join(dir, FILES.councils)
 
-    const councils = await readJsonFile(filePath, {
-      parse: (d) => CouncilSession.array().parse(d),
-    })
+    const councils = await readJsonFileSafe(filePath, (d) => parseArrayOf(CouncilSession, d), () => [])
 
     return councils.filter(
       (c) => c.status === "voting" || c.status === "debating" || c.status === "tie"
@@ -737,21 +820,31 @@ export namespace HivemindStore {
   async function updateStats(contextRoot?: string, scope: HivemindScope = "project"): Promise<void> {
     const dir = scope === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
     const manifestPath = path.join(dir, FILES.manifest)
-    const manifest = await readJsonFile(manifestPath, HivemindManifest)
+    const state = await getState(contextRoot, scope)
+    const manifest = state.manifest
 
-    // Count entries by category and status
+    const arrays = [
+      ["fear", state.fears],
+      ["satisfaction", state.satisfactions],
+      ["knowledge", state.knowledge],
+      ["decision", state.decisions],
+      ["preference", state.preferences],
+    ] as const
+
     let total = 0
     let golden = 0
     let decaying = 0
     let contested = 0
-    const byCategory = { fear: 0, satisfaction: 0, knowledge: 0, decision: 0, preference: 0 }
+    const byCategory: Record<HivemindCategory, number> = {
+      fear: 0,
+      satisfaction: 0,
+      knowledge: 0,
+      decision: 0,
+      preference: 0,
+    }
 
-    for (const [category, arrayKey] of Object.entries(categoryToArrayKey)) {
-      const entries = await readJsonFile(path.join(dir, FILES[arrayKey]), {
-        parse: (d) => HivemindEntry.array().parse(d),
-      })
-
-      byCategory[category as HivemindCategory] = entries.length
+    for (const [category, entries] of arrays) {
+      byCategory[category] = entries.length
       total += entries.length
 
       for (const entry of entries) {
@@ -802,7 +895,11 @@ export namespace HivemindStore {
   ): Promise<void> {
     const dir = scope === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
     const manifestPath = path.join(dir, FILES.manifest)
-    const manifest = await readJsonFile(manifestPath, HivemindManifest)
+    const manifest = await readJsonFileSafe(
+      manifestPath,
+      (d) => parseManifest(d),
+      () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
+    )
 
     if (updates.decay) {
       manifest.decay = { ...manifest.decay, ...updates.decay }

@@ -9,6 +9,7 @@ import { ToMView } from "./views/tom-view"
 import { MetricsView } from "./views/metrics-view"
 import { AgentsView } from "./views/agents-view"
 import { AFSView } from "./views/afs-view"
+import { OutcomesView } from "./views/outcomes-view"
 import { ChatView } from "./views/chat-view"
 
 /**
@@ -35,6 +36,13 @@ export function PaneView(props: PaneViewProps) {
 
   // Get the active tab for this pane
   const activeTab = createMemo(() => getActiveTab(props.pane))
+
+  const chatSessionID = createMemo(() => {
+    const tab = activeTab()
+    const fromTab = tab.sessionID
+    const fromLegacyMetadata = (tab.metadata as any)?.sessionID
+    return (fromTab || fromLegacyMetadata || props.sessionID) as string
+  })
 
   // Check if we have multiple tabs
   const hasTabs = createMemo(() => props.pane.tabs && props.pane.tabs.length > 1)
@@ -94,7 +102,7 @@ export function PaneView(props: PaneViewProps) {
       <box flexGrow={1} overflow="hidden">
         <Switch fallback={<PlaceholderView viewType={activeTab().viewType} />}>
           <Match when={activeTab().viewType === "chat"}>
-            <ChatView sessionID={props.sessionID} isActive={props.isActive} />
+            <ChatView sessionID={chatSessionID()} isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "afs"}>
             <AFSView paneId={props.pane.id} isActive={props.isActive} />
@@ -107,6 +115,9 @@ export function PaneView(props: PaneViewProps) {
           </Match>
           <Match when={activeTab().viewType === "agents"}>
             <AgentsView isActive={props.isActive} />
+          </Match>
+          <Match when={activeTab().viewType === "outcomes"}>
+            <OutcomesView paneId={props.pane.id} isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "diff"}>
             <DiffPlaceholder />
@@ -137,6 +148,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
+      outcomes: "󰄩",
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
@@ -152,6 +164,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       tom: "ToM",
       metrics: "Metrics",
       agents: "Agents",
+      outcomes: "Outcomes",
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",
@@ -214,6 +227,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       tom: "Theory of Mind",
       metrics: "Metrics",
       agents: "Agents",
+      outcomes: "Outcomes",
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",
@@ -228,6 +242,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
+      outcomes: "󰄩",
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
@@ -350,6 +365,13 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
     <For each={sortedFloating()}>
       {(floating) => {
         const isActive = () => panes.activeId === floating.pane.id
+        const activeTab = createMemo(() => getActiveTab(floating.pane))
+        const chatSessionID = createMemo(() => {
+          const tab = activeTab()
+          const fromTab = tab.sessionID
+          const fromLegacyMetadata = (tab.metadata as any)?.sessionID
+          return (fromTab || fromLegacyMetadata || props.sessionID) as string
+        })
 
         // Calculate absolute position based on percentage
         const left = () => Math.floor(dimensions().width * floating.x)
@@ -396,7 +418,7 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
             <box flexGrow={1} overflow="hidden">
               <Switch fallback={<PlaceholderView viewType={getActiveTab(floating.pane).viewType} />}>
                 <Match when={getActiveTab(floating.pane).viewType === "chat"}>
-                  <ChatView sessionID={props.sessionID} isActive={isActive()} />
+                  <ChatView sessionID={chatSessionID()} isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "afs"}>
                   <AFSView paneId={floating.pane.id} isActive={isActive()} />
@@ -409,6 +431,9 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "agents"}>
                   <AgentsView isActive={isActive()} />
+                </Match>
+                <Match when={getActiveTab(floating.pane).viewType === "outcomes"}>
+                  <OutcomesView paneId={floating.pane.id} isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "diff"}>
                   <DiffPlaceholder />
@@ -442,6 +467,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
+      outcomes: "󰄩",
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
@@ -456,6 +482,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       tom: "ToM",
       metrics: "Metrics",
       agents: "Agents",
+      outcomes: "Outcomes",
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",

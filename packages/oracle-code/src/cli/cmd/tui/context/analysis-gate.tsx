@@ -2,6 +2,7 @@ import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { createMemo, onMount, onCleanup } from "solid-js"
 import { useSDK } from "./sdk"
+import { useKV } from "./kv"
 import { AFS } from "@/afs"
 import { CognitiveIntegration, AnalysisTriggers, Emotions } from "@/cognitive"
 
@@ -51,12 +52,25 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
   name: "AnalysisGate",
   init: () => {
     const sdk = useSDK()
+    const kv = useKV()
+
+    const rawMode = kv.get("analysis.gate.mode", "confirm-all")
+    const mode: GateMode =
+      rawMode === "auto-accept" || rawMode === "auto-deny" || rawMode === "confirm-all"
+        ? rawMode
+        : "confirm-all"
+
+    const rawExpiration = Number(kv.get("analysis.gate.expiration_seconds", 300))
+    const expirationSeconds =
+      Number.isFinite(rawExpiration) && rawExpiration > 0 ? Math.floor(rawExpiration) : 300
+
+    const showNotifications = Boolean(kv.get("analysis.gate.show_notifications", true))
 
     const [store, setStore] = createStore<AnalysisGateContextData>({
       pending: [],
-      mode: "confirm-all",
-      showNotifications: true,
-      expirationSeconds: 300, // 5 minutes
+      mode,
+      showNotifications,
+      expirationSeconds,
       stats: {
         totalTriggered: 0,
         accepted: 0,
@@ -228,6 +242,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
      */
     function setMode(mode: GateMode) {
       setStore("mode", mode)
+      kv.set("analysis.gate.mode", mode)
     }
 
     /**
@@ -237,7 +252,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
       const modes: GateMode[] = ["confirm-all", "auto-accept", "auto-deny"]
       const current = modes.indexOf(store.mode)
       const next = (current + 1) % modes.length
-      setStore("mode", modes[next])
+      setMode(modes[next])
     }
 
     /**
@@ -345,9 +360,12 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
       // Settings
       setShowNotifications(show: boolean) {
         setStore("showNotifications", show)
+        kv.set("analysis.gate.show_notifications", show)
       },
       setExpirationSeconds(seconds: number) {
-        setStore("expirationSeconds", seconds)
+        const normalized = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 300
+        setStore("expirationSeconds", normalized)
+        kv.set("analysis.gate.expiration_seconds", normalized)
       },
     }
   },

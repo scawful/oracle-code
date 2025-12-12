@@ -219,7 +219,7 @@ export const AuthLoginCommand = cmd({
   describe: "log in to a provider",
   builder: (yargs) =>
     yargs.positional("url", {
-      describe: "opencode auth provider",
+      describe: "provider auth base URL (supports /.well-known/opencode)",
       type: "string",
     }),
   async handler(args) {
@@ -329,7 +329,7 @@ export const AuthLoginCommand = cmd({
           }
 
           prompts.log.warn(
-            `This only stores a credential for ${provider} - you will need configure it in opencode.json, check the docs for examples.`,
+            `This only stores a credential for ${provider} - you will need configure it in oracle-code.json, check the docs for examples.`,
           )
         }
 
