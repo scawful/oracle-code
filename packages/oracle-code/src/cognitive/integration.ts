@@ -23,6 +23,15 @@ import { Goals } from "./goals"
 import { Epistemic } from "./epistemic"
 import { Emotions } from "./emotions"
 import { AnalysisTriggers } from "./analysis-triggers"
+import { Hivemind } from "./hivemind"
+import type {
+  HivemindState,
+  HivemindEntry,
+  HivemindCategory,
+  HivemindScope,
+  DecayResult,
+  CouncilSession,
+} from "./hivemind"
 import { Instance } from "../project/instance"
 import { FileWatcher } from "../file/watcher"
 
@@ -54,6 +63,17 @@ export namespace CognitiveIntegration {
     initialized = true
 
     log.info("initializing cognitive integration")
+
+    // Initialize Hivemind system
+    try {
+      const root = await AFS.findRoot()
+      if (root) {
+        await Hivemind.init(root)
+        log.info("hivemind initialized")
+      }
+    } catch (e) {
+      log.error("error initializing hivemind", { error: e })
+    }
 
     // Subscribe to tool part updates for spin detection and epistemic recording
     Bus.subscribe(MessageV2.Event.PartUpdated, async (event) => {
@@ -499,10 +519,101 @@ export namespace CognitiveIntegration {
         }
       }
 
+      // Hivemind context
+      const hivemindContext = await getHivemindPromptContext(root)
+      if (hivemindContext) {
+        lines.push("")
+        lines.push(hivemindContext)
+      }
+
       lines.push("</cognitive_state>")
       return lines.join("\n")
     } catch (e) {
       log.error("error getting prompt context", { error: e })
+      return null
+    }
+  }
+
+  /**
+   * Get hivemind context for system prompt injection.
+   * Returns relevant entries from the hivemind for inclusion in prompts.
+   */
+  async function getHivemindPromptContext(root: string): Promise<string | null> {
+    try {
+      const entries = await Hivemind.getPromptEntries(root, {
+        maxFears: 3,
+        maxSatisfactions: 3,
+        maxKnowledge: 5,
+        maxDecisions: 5,
+        includeGlobal: true,
+      })
+
+      const lines: string[] = []
+
+      // Only add section if we have entries
+      const hasEntries =
+        entries.fears.length > 0 ||
+        entries.satisfactions.length > 0 ||
+        entries.knowledge.length > 0 ||
+        entries.decisions.length > 0 ||
+        entries.preferences.length > 0
+
+      if (!hasEntries) return null
+
+      lines.push("## Hivemind (Cross-Session Learning)")
+
+      // Fears - things to watch out for
+      if (entries.fears.length > 0) {
+        lines.push("")
+        lines.push("### Known Pitfalls")
+        for (const fear of entries.fears) {
+          const badge = fear.status === "golden" ? " [GOLDEN]" : ""
+          lines.push(`- ${fear.key}${badge}: ${fear.value}`)
+        }
+      }
+
+      // Satisfactions - what works well
+      if (entries.satisfactions.length > 0) {
+        lines.push("")
+        lines.push("### What Works Well")
+        for (const sat of entries.satisfactions) {
+          const badge = sat.status === "golden" ? " [GOLDEN]" : ""
+          lines.push(`- ${sat.key}${badge}: ${sat.value}`)
+        }
+      }
+
+      // Knowledge - established facts
+      if (entries.knowledge.length > 0) {
+        lines.push("")
+        lines.push("### Established Knowledge")
+        for (const k of entries.knowledge) {
+          const badge = k.status === "golden" ? " [GOLDEN]" : ""
+          lines.push(`- ${k.key}${badge}: ${k.value}`)
+        }
+      }
+
+      // Decisions - past decisions to respect
+      if (entries.decisions.length > 0) {
+        lines.push("")
+        lines.push("### Past Decisions")
+        for (const d of entries.decisions) {
+          const badge = d.status === "golden" ? " [GOLDEN]" : ""
+          lines.push(`- ${d.key}${badge}: ${d.value}`)
+        }
+      }
+
+      // Preferences - user/project preferences
+      if (entries.preferences.length > 0) {
+        lines.push("")
+        lines.push("### Preferences")
+        for (const p of entries.preferences) {
+          lines.push(`- ${p.key}: ${p.value}`)
+        }
+      }
+
+      return lines.join("\n")
+    } catch (e) {
+      log.error("error getting hivemind prompt context", { error: e })
       return null
     }
   }
@@ -726,32 +837,83 @@ export namespace CognitiveIntegration {
    * Apply decay to both epistemic and emotional state. Call at turn boundaries.
    * Uses tracked modified files to accelerate decay for related facts.
    */
-  export async function applyDecay(): Promise<{ epistemic: number; emotional: { pruned: number; decayed: number } }> {
+  export async function applyDecay(): Promise<{
+    epistemic: number
+    emotional: { pruned: number; decayed: number }
+    hivemind: { processed: number; warnings: number; expired: number }
+  }> {
     try {
       const root = await AFS.findRoot()
-      if (!root) return { epistemic: 0, emotional: { pruned: 0, decayed: 0 } }
+      if (!root)
+        return {
+          epistemic: 0,
+          emotional: { pruned: 0, decayed: 0 },
+          hivemind: { processed: 0, warnings: 0, expired: 0 },
+        }
 
       // Apply epistemic decay
       const epistemicPruned = await Epistemic.applyDecay(root, modifiedFilesSinceLastDecay)
-      
+
       // Apply emotional decay
       const emotionalResult = await Emotions.applyDecay(root)
-      
+
+      // Apply hivemind decay and process promotions
+      const hivemindResult = await applyHivemindDecay(root)
+
       // Clear tracked files after applying decay
       modifiedFilesSinceLastDecay = []
-      
-      if (epistemicPruned > 0 || emotionalResult.pruned > 0) {
-        log.info("decay applied", { 
-          epistemicPruned, 
+
+      if (epistemicPruned > 0 || emotionalResult.pruned > 0 || hivemindResult.processed > 0) {
+        log.info("decay applied", {
+          epistemicPruned,
           emotionalPruned: emotionalResult.pruned,
-          emotionalDecayed: emotionalResult.decayed 
+          emotionalDecayed: emotionalResult.decayed,
+          hivemindProcessed: hivemindResult.processed,
+          hivemindWarnings: hivemindResult.warnings,
+          hivemindExpired: hivemindResult.expired,
         })
       }
-      
-      return { epistemic: epistemicPruned, emotional: emotionalResult }
+
+      return { epistemic: epistemicPruned, emotional: emotionalResult, hivemind: hivemindResult }
     } catch (e) {
       log.error("error applying decay", { error: e })
-      return { epistemic: 0, emotional: { pruned: 0, decayed: 0 } }
+      return {
+        epistemic: 0,
+        emotional: { pruned: 0, decayed: 0 },
+        hivemind: { processed: 0, warnings: 0, expired: 0 },
+      }
+    }
+  }
+
+  /**
+   * Apply hivemind decay and process auto-promotions.
+   */
+  async function applyHivemindDecay(
+    root: string
+  ): Promise<{ processed: number; warnings: number; expired: number }> {
+    try {
+      // Process decay for all entries - this handles both warnings and expiry
+      const decayResult = await Hivemind.Decay.processDecay(root, "project")
+
+      // Log warnings for decaying entries
+      for (const entry of decayResult.warned) {
+        log.info("hivemind entry decay warning", {
+          entryId: entry.id,
+          key: entry.key,
+        })
+      }
+
+      // Note: Auto-promotions are processed when entries are added, not during decay
+      // The processAutoPromotions function requires specific entries to check
+
+      return {
+        processed: decayResult.expired.length + decayResult.warned.length,
+        warnings: decayResult.warned.length,
+        expired: decayResult.expired.length,
+      }
+    } catch (e) {
+      log.error("error applying hivemind decay", { error: e })
+      return { processed: 0, warnings: 0, expired: 0 }
     }
   }
 
@@ -801,6 +963,128 @@ export namespace CognitiveIntegration {
       return await buildCognitiveSnapshot(root)
     } catch (e) {
       log.error("error getting cognitive snapshot", { error: e })
+      return null
+    }
+  }
+
+  /**
+   * Get the current hivemind state for UI display.
+   */
+  export async function getHivemindState(): Promise<HivemindState | null> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return null
+      return await Hivemind.getState(root)
+    } catch (e) {
+      log.error("error getting hivemind state", { error: e })
+      return null
+    }
+  }
+
+  /**
+   * Get the hivemind summary for UI display.
+   */
+  export async function getHivemindSummary(): Promise<{
+    project: {
+      total: number
+      golden: number
+      decaying: number
+      contested: number
+      pending: number
+      councils: number
+    }
+    global: { enabled: boolean; total: number } | null
+  } | null> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return null
+      return await Hivemind.getSummary(root)
+    } catch (e) {
+      log.error("error getting hivemind summary", { error: e })
+      return null
+    }
+  }
+
+  /**
+   * Get decay warnings for hivemind entries.
+   */
+  export async function getHivemindDecayWarnings(): Promise<HivemindEntry[]> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return []
+      return await Hivemind.Decay.getDecayWarnings(root)
+    } catch (e) {
+      log.error("error getting hivemind decay warnings", { error: e })
+      return []
+    }
+  }
+
+  /**
+   * Get pending council sessions.
+   */
+  export async function getActiveCouncils(): Promise<CouncilSession[]> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return []
+      return await Hivemind.getActiveCouncils(root)
+    } catch (e) {
+      log.error("error getting active councils", { error: e })
+      return []
+    }
+  }
+
+  /**
+   * Manually promote an emotion or knowledge entry to the hivemind.
+   */
+  export async function promoteToHivemind(options: {
+    category: HivemindCategory
+    key: string
+    value: string
+    confidence: number
+    reason: string
+    scope?: HivemindScope
+    originalEntryId?: string
+  }): Promise<HivemindEntry | null> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return null
+
+      // Add entry to hivemind
+      const entry = await Hivemind.addEntry(
+        {
+          category: options.category,
+          scope: options.scope || "project",
+          key: options.key,
+          value: options.value,
+          confidence: options.confidence,
+          status: "active",
+          source: {
+            sessionId: "manual",
+            agentRole: "primary",
+            timestamp: new Date().toISOString(),
+            promotionReason: options.reason,
+          },
+          decay: {
+            lastAccessed: new Date().toISOString(),
+            accessCount: 0,
+            decayRate: 0.1,
+          },
+          metadata: {
+            originalEntryId: options.originalEntryId,
+          },
+        },
+        root
+      )
+
+      log.info("promoted entry to hivemind", {
+        entryId: entry.id,
+        category: options.category,
+        key: options.key,
+      })
+
+      return entry
+    } catch (e) {
+      log.error("error promoting to hivemind", { error: e })
       return null
     }
   }
@@ -894,6 +1178,34 @@ export namespace CognitiveIntegration {
         sections.push("")
         sections.push("_See `.context/scratchpad/emotions.json` for full details_")
         sections.push("")
+      }
+
+      // Hivemind section
+      try {
+        const hivemindSummary = await Hivemind.getSummary(root)
+        sections.push("## Hivemind")
+        sections.push("")
+        sections.push(`- **Entries**: ${hivemindSummary.project.total} (${hivemindSummary.project.golden} golden)`)
+        if (hivemindSummary.project.decaying > 0) {
+          sections.push(`- **Decaying**: ${hivemindSummary.project.decaying} entries`)
+        }
+        if (hivemindSummary.project.contested > 0) {
+          sections.push(`- **Contested**: ${hivemindSummary.project.contested} entries`)
+        }
+        if (hivemindSummary.project.pending > 0) {
+          sections.push(`- **Pending Promotions**: ${hivemindSummary.project.pending}`)
+        }
+        if (hivemindSummary.project.councils > 0) {
+          sections.push(`- **Active Councils**: ${hivemindSummary.project.councils}`)
+        }
+        if (hivemindSummary.global) {
+          sections.push(`- **Global**: ${hivemindSummary.global.total} entries`)
+        }
+        sections.push("")
+        sections.push("_See `.context/hivemind/` for full details_")
+        sections.push("")
+      } catch {
+        // Hivemind may not be initialized
       }
 
       if (sections.length === 0) return null
