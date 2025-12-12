@@ -128,6 +128,9 @@ export function PaneView(props: PaneViewProps) {
           <Match when={activeTab().viewType === "sidebar"}>
             <SidebarPlaceholder />
           </Match>
+          <Match when={activeTab().viewType === "orchestrator"}>
+            <OrchestratorPlaceholder />
+          </Match>
         </Switch>
       </box>
     </box>
@@ -152,6 +155,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
+      orchestrator: "󰑣",
     }
     return icons[viewType]
   }
@@ -168,6 +172,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",
+      orchestrator: "Orchestrator",
     }
     return labels[tab.viewType]
   }
@@ -231,6 +236,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",
+      orchestrator: "Orchestrator",
     }
     return labels[props.viewType]
   })
@@ -246,6 +252,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
+      orchestrator: "󰑣",
     }
     return icons[props.viewType]
   })
@@ -341,6 +348,36 @@ function SidebarPlaceholder() {
     <box flexGrow={1} flexDirection="column" padding={1}>
       <text fg={theme.text}>Sidebar</text>
       <text fg={theme.textMuted} marginTop={1}>Traditional sidebar content</text>
+    </box>
+  )
+}
+
+/**
+ * Placeholder for Orchestrator view
+ * TODO: Implement full orchestrator with subagent management
+ */
+function OrchestratorPlaceholder() {
+  const { theme } = useTheme()
+
+  return (
+    <box flexGrow={1} flexDirection="column" padding={1}>
+      <text fg={theme.text}>󰑣 Orchestrator</text>
+      <text fg={theme.textMuted} marginTop={1}>
+        Multi-agent orchestration panel
+      </text>
+      <text fg={theme.textMuted} marginTop={1}>
+        • Spawn and manage subagents
+      </text>
+      <text fg={theme.textMuted}>
+        • Monitor agent communication
+      </text>
+      <text fg={theme.textMuted}>
+        • Coordinate parallel tasks
+      </text>
+      <box marginTop={2}>
+        <text fg={theme.primary}>SPC b O</text>
+        <text fg={theme.textMuted}> to open in new pane</text>
+      </box>
     </box>
   )
 }
@@ -444,6 +481,9 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
                 <Match when={getActiveTab(floating.pane).viewType === "sidebar"}>
                   <SidebarPlaceholder />
                 </Match>
+                <Match when={getActiveTab(floating.pane).viewType === "orchestrator"}>
+                  <OrchestratorPlaceholder />
+                </Match>
               </Switch>
             </box>
           </box>
@@ -471,6 +511,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       diff: "󰦓",
       todo: "󰄬",
       sidebar: "󰕰",
+      orchestrator: "󰑣",
     }
     return icons[activeTab().viewType]
   })
@@ -486,6 +527,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       diff: "Diff",
       todo: "Todo",
       sidebar: "Sidebar",
+      orchestrator: "Orchestrator",
     }
     return labels[activeTab().viewType]
   })

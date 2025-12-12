@@ -40,6 +40,7 @@ export type PaneViewType =
   | "diff" // Diff view
   | "todo" // Todo list
   | "sidebar" // Traditional sidebar view
+  | "orchestrator" // Orchestrator agent with subagent management
 
 /**
  * A single tab within a pane

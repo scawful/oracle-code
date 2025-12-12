@@ -129,6 +129,7 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "d", label: "diff view", action: "buffer.diff" },
         { key: "o", label: "todo", action: "buffer.todo" },
         { key: "s", label: "sidebar", action: "buffer.sidebar" },
+        { key: "O", label: "orchestrator", action: "buffer.orchestrator" },
       ],
     },
     {

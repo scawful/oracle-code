@@ -56,7 +56,7 @@ import { DialogTimeline } from "./dialog-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
-import { usePanes, type PaneNode, type PaneLeaf } from "@tui/context/panes"
+import { usePanes, type PaneNode, type PaneLeaf, type SplitDirection } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "../../util/clipboard"
@@ -79,25 +79,76 @@ function SecondaryPaneArea(props: { sessionID: string }) {
   const panes = usePanes()
   const { theme } = useTheme()
 
-  // Find the secondary pane tree (everything except "main")
-  // When user splits from main, we get a tree like:
-  //   split -> [main, newPane]
-  // We want to render only newPane
+  /**
+   * Extract the secondary pane subtree, excluding "main".
+   * This handles arbitrarily nested trees by rebuilding the tree
+   * structure without the main pane's branch.
+   */
   const secondaryRoot = createMemo(() => {
     const root = panes.root
     if (root.type === "leaf") {
       // Only main pane, shouldn't happen when this component renders
       return null
     }
-    // Check if main is in the first or second position
-    if (root.first.type === "leaf" && root.first.id === "main") {
-      return root.second
+
+    // Helper to check if a subtree contains the main pane
+    function containsMain(node: PaneNode): boolean {
+      if (node.type === "leaf") return node.id === "main"
+      return containsMain(node.first) || containsMain(node.second)
     }
-    if (root.second.type === "leaf" && root.second.id === "main") {
-      return root.first
+
+    // Helper to extract the non-main portion of a tree
+    function extractSecondary(node: PaneNode): PaneNode | null {
+      if (node.type === "leaf") {
+        return node.id === "main" ? null : node
+      }
+
+      const firstHasMain = containsMain(node.first)
+      const secondHasMain = containsMain(node.second)
+
+      if (firstHasMain && !secondHasMain) {
+        // Main is in first branch - return second branch entirely,
+        // but also check if first branch has other panes besides main
+        const firstSecondary = extractSecondary(node.first)
+        if (firstSecondary) {
+          // There are other panes in the first branch besides main
+          return {
+            ...node,
+            first: firstSecondary,
+          }
+        }
+        return node.second
+      }
+
+      if (secondHasMain && !firstHasMain) {
+        // Main is in second branch - return first branch entirely,
+        // but also check if second branch has other panes besides main
+        const secondSecondary = extractSecondary(node.second)
+        if (secondSecondary) {
+          // There are other panes in the second branch besides main
+          return {
+            ...node,
+            second: secondSecondary,
+          }
+        }
+        return node.first
+      }
+
+      if (firstHasMain && secondHasMain) {
+        // Both branches have main (shouldn't happen) - extract from both
+        const firstSec = extractSecondary(node.first)
+        const secondSec = extractSecondary(node.second)
+        if (firstSec && secondSec) {
+          return { ...node, first: firstSec, second: secondSec }
+        }
+        return firstSec || secondSec
+      }
+
+      // Neither branch has main - return entire node
+      return node
     }
-    // Main is nested deeper, render the whole tree
-    return root
+
+    return extractSecondary(root)
   })
 
   return (
@@ -341,22 +392,56 @@ export function Session() {
   // Check if there are secondary panes (panes other than the main chat)
   const hasSecondaryPanes = createMemo(() => panes.hasSecondaryPanes)
 
-  // If the pane root is a split that directly separates main from the rest,
-  // use its direction/ratio to drive the on-screen layout so `SPC w /` and
-  // `SPC w -` behave like real vertical/horizontal splits.
+  /**
+   * Find the split that contains "main" as a direct child and calculate
+   * the effective ratio/direction for the main pane. This traverses the
+   * tree to handle cases where main is nested (e.g., after multiple splits).
+   */
   const mainSecondarySplit = createMemo(() => {
     const root = panes.root
     if (root.type !== "split") return null
 
-    const firstIsMain = root.first.type === "leaf" && root.first.id === "main"
-    const secondIsMain = root.second.type === "leaf" && root.second.id === "main"
-    if (!firstIsMain && !secondIsMain) return null
-
-    const mainRatio = firstIsMain ? root.ratio : 1 - root.ratio
-    return {
-      direction: root.direction,
-      mainRatio,
+    // Helper to find the split containing "main" and calculate cumulative ratio
+    function findMainSplit(
+      node: PaneNode,
+      parentDirection: SplitDirection | null,
+      cumulativeRatio: number
+    ): { direction: SplitDirection; mainRatio: number } | null {
+      if (node.type === "leaf") return null
+      
+      const firstIsMain = node.first.type === "leaf" && node.first.id === "main"
+      const secondIsMain = node.second.type === "leaf" && node.second.id === "main"
+      
+      if (firstIsMain) {
+        // Main is in first position - it gets node.ratio of this split
+        const effectiveRatio = cumulativeRatio * node.ratio
+        return { direction: node.direction, mainRatio: effectiveRatio }
+      }
+      
+      if (secondIsMain) {
+        // Main is in second position - it gets (1 - node.ratio) of this split
+        const effectiveRatio = cumulativeRatio * (1 - node.ratio)
+        return { direction: node.direction, mainRatio: effectiveRatio }
+      }
+      
+      // Main might be nested deeper - search children
+      // When descending, multiply the cumulative ratio by this split's portion
+      const firstResult = findMainSplit(
+        node.first,
+        node.direction,
+        cumulativeRatio * node.ratio
+      )
+      if (firstResult) return firstResult
+      
+      const secondResult = findMainSplit(
+        node.second,
+        node.direction,
+        cumulativeRatio * (1 - node.ratio)
+      )
+      return secondResult
     }
+
+    return findMainSplit(root, null, 1.0)
   })
 
   const mainFraction = createMemo(() => {
