@@ -160,35 +160,58 @@ function SecondaryPaneArea(props: { sessionID: string }) {
 
 /**
  * Recursive renderer for secondary pane tree
+ * 
+ * Renders a pane tree structure, handling both leaf nodes (actual panes)
+ * and split nodes (containers that divide space between children).
  */
 function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
   const panes = usePanes()
   const { theme } = useTheme()
 
-  // Skip rendering the "main" pane
+  // Skip rendering the "main" pane (it's rendered separately)
   if (props.node.type === "leaf" && props.node.id === "main") {
     return null
   }
 
-  // Handle leaf node
+  // Handle leaf node - render actual pane content
   if (props.node.type === "leaf") {
     const leaf = props.node
     const isActive = createMemo(() => panes.activeId === leaf.id)
-    return <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
+    return (
+      <box flexGrow={1} width="100%" height="100%">
+        <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
+      </box>
+    )
   }
 
-  // Handle split node
+  // Handle split node - divide space between two children
   const split = props.node
   const isVertical = split.direction === "vertical"
+  
+  // Calculate flex values - multiply by 100 for more precise integer ratios
+  const firstFlex = Math.round(split.ratio * 100)
+  const secondFlex = 100 - firstFlex
 
   return (
-    <box flexDirection={isVertical ? "row" : "column"} flexGrow={1} width="100%" height="100%">
-      {/* First pane */}
-      <box flexGrow={split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+    <box
+      flexDirection={isVertical ? "row" : "column"}
+      flexGrow={1}
+      width="100%"
+      height="100%"
+    >
+      {/* First child pane */}
+      <box
+        flexGrow={firstFlex}
+        flexShrink={1}
+        flexBasis={0}
+        minWidth={isVertical ? 10 : undefined}
+        minHeight={isVertical ? undefined : 3}
+        overflow="hidden"
+      >
         <SecondaryPaneRenderer node={split.first} sessionID={props.sessionID} />
       </box>
 
-      {/* Split border/divider */}
+      {/* Divider line between panes */}
       <box
         backgroundColor={theme.border}
         width={isVertical ? 1 : "100%"}
@@ -196,8 +219,15 @@ function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
         flexShrink={0}
       />
 
-      {/* Second pane */}
-      <box flexGrow={1 - split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+      {/* Second child pane */}
+      <box
+        flexGrow={secondFlex}
+        flexShrink={1}
+        flexBasis={0}
+        minWidth={isVertical ? 10 : undefined}
+        minHeight={isVertical ? undefined : 3}
+        overflow="hidden"
+      >
         <SecondaryPaneRenderer node={split.second} sessionID={props.sessionID} />
       </box>
     </box>

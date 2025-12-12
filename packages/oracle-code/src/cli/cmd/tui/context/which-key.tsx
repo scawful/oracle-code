@@ -172,13 +172,21 @@ function buildCommandTree(): WhichKeyNode[] {
     },
     {
       key: "a",
-      label: "+agent",
+      label: "+agent/analysis",
       isGroup: true,
       children: [
-        { key: "l", label: "list", keybind: "agent_list" },
-        { key: "n", label: "next", keybind: "agent_cycle" },
-        { key: "p", label: "prev", keybind: "agent_cycle_reverse" },
-        { key: "s", label: "status", action: "agent.status" },
+        // Agent management
+        { key: "a", label: "agent list", keybind: "agent_list" },
+        { key: "n", label: "next agent", keybind: "agent_cycle" },
+        { key: "p", label: "prev agent", keybind: "agent_cycle_reverse" },
+        { key: "s", label: "agent status", action: "agent.status" },
+        // Analysis modes
+        { key: "t", label: "ToM analysis", action: "analysis.tom" },
+        { key: "m", label: "metrics analysis", action: "analysis.metrics" },
+        { key: "e", label: "eval analysis", action: "analysis.eval" },
+        { key: "c", label: "critic analysis", action: "analysis.critic" },
+        { key: "E", label: "emotional analysis", action: "analysis.emotional" },
+        { key: "g", label: "analysis gate", action: "analysis.gate" },
       ],
     },
     {
@@ -189,21 +197,6 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "l", label: "list", keybind: "model_list" },
         { key: "n", label: "next", keybind: "model_cycle_recent" },
         { key: "p", label: "prev", keybind: "model_cycle_recent_reverse" },
-      ],
-    },
-    {
-      key: "x",
-      label: "+analysis",
-      isGroup: true,
-      children: [
-        { key: "t", label: "ToM", action: "analysis.tom" },
-        { key: "m", label: "metrics", action: "analysis.metrics" },
-        { key: "e", label: "eval", action: "analysis.eval" },
-        { key: "c", label: "critic", action: "analysis.critic" },
-        { key: "E", label: "emotional", action: "analysis.emotional" },
-        { key: "n", label: "cycle next", keybind: "analysis_cycle" },
-        { key: "p", label: "cycle prev", keybind: "analysis_cycle_reverse" },
-        { key: "g", label: "gate", action: "analysis.gate" },
       ],
     },
     {
@@ -392,8 +385,13 @@ export const { use: useWhichKey, provider: WhichKeyProvider } = createSimpleCont
         return false
       }
 
+      // Find matching command
+      // For single-char keys: exact match required (case-sensitive)
+      // For multi-char keys (TAB, SPC): case-insensitive
       const match = currentNode.children.find((n) => {
-        if (n.key.length > 1) return n.key.toLowerCase() === key.toLowerCase()
+        if (n.key.length > 1) {
+          return n.key.toLowerCase() === key.toLowerCase()
+        }
         return n.key === key
       })
       if (!match) {
