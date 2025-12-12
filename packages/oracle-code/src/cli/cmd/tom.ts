@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { cmd } from "./cmd"
 import { UI } from "../ui"
 import { Instance } from "../../project/instance"
@@ -8,15 +9,15 @@ const TomSyncCommand = cmd({
   describe: "sync common ground",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
-        const memoryPath = path.join(Instance.worktree, ".context/memory/SWARM_SPEC.md")
+        const memoryPath = path.join(Instance.worktree, ".context/memory/AGENTS_SPEC.md")
         const exists = await Bun.file(memoryPath).exists()
 
         if (exists) {
             UI.println(`${UI.Style.TEXT_SUCCESS}Common Ground established.${UI.Style.TEXT_NORMAL} Swarm is aligned.`)
         } else {
-            UI.println(`${UI.Style.TEXT_WARNING}Common Ground missing.${UI.Style.TEXT_NORMAL} Run 'codewizard afs init' first.`)
+            UI.println(`${UI.Style.TEXT_WARNING}Common Ground missing.${UI.Style.TEXT_NORMAL} Run 'ocode afs init' first.`)
         }
       },
     })

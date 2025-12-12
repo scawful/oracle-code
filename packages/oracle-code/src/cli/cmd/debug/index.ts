@@ -22,7 +22,7 @@ export const DebugCommand = cmd({
       .command({
         command: "wait",
         async handler() {
-          await bootstrap(process.cwd(), async () => {
+          await bootstrap(Global.cwd(), async () => {
             await new Promise((resolve) => setTimeout(resolve, 1_000 * 60 * 60 * 24))
           })
         },

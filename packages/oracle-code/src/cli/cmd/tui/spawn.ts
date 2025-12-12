@@ -10,7 +10,7 @@ export const TuiSpawnCommand = cmd({
     yargs
       .positional("project", {
         type: "string",
-        describe: "path to start codewizard in",
+        describe: "path to start ocode in",
       })
       .option("port", {
         type: "number",
@@ -31,6 +31,8 @@ export const TuiSpawnCommand = cmd({
     const bin = process.execPath
     const cmd = []
     let cwd = process.cwd()
+    // OCODE_CWD is set by the wrapper script when running via bun --cwd
+    const originalCwd = process.env["OCODE_CWD"] || process.cwd()
     if (bin.endsWith("bun")) {
       cmd.push(
         process.execPath,
@@ -41,7 +43,7 @@ export const TuiSpawnCommand = cmd({
       )
       cwd = new URL("../../../../", import.meta.url).pathname
     } else cmd.push(process.execPath)
-    cmd.push("attach", server.url.toString(), "--dir", args.project ? path.resolve(args.project) : process.cwd())
+    cmd.push("attach", server.url.toString(), "--dir", args.project ? path.resolve(args.project) : originalCwd)
     const proc = Bun.spawn({
       cmd,
       cwd,

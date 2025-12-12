@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { cmd } from "./cmd"
 import { UI } from "../ui"
 import { Instance } from "../../project/instance"
@@ -8,25 +9,26 @@ import { State } from "../../state"
 import path from "path"
 import { EOL } from "os"
 
-const SwarmListCommand = cmd({
+const AgentsListCommand = cmd({
   command: "list",
-  describe: "list agent roles in swarm",
+  describe: "list agent roles",
   async handler() {
-    UI.println(`${UI.Style.TEXT_HIGHLIGHT_BOLD}Agent Swarm Roles${UI.Style.TEXT_NORMAL}`)
+    UI.println(`${UI.Style.TEXT_HIGHLIGHT_BOLD}Agent Roles${UI.Style.TEXT_NORMAL}`)
     UI.println(`  - ${UI.Style.TEXT_INFO}@general${UI.Style.TEXT_NORMAL}    (Coordinator)`)
     UI.println(`  - ${UI.Style.TEXT_INFO}@planner${UI.Style.TEXT_NORMAL}    (Strategy)`)
     UI.println(`  - ${UI.Style.TEXT_INFO}@coder${UI.Style.TEXT_NORMAL}      (Implementation)`)
     UI.println(`  - ${UI.Style.TEXT_INFO}@critic${UI.Style.TEXT_NORMAL}     (Review)`)
     UI.println(`  - ${UI.Style.TEXT_INFO}@researcher${UI.Style.TEXT_NORMAL} (Investigation)`)
+    UI.println(`  - ${UI.Style.TEXT_INFO}@maintenance${UI.Style.TEXT_NORMAL} (Parity & Deps)`)
   },
 })
 
-const SwarmAgentsCommand = cmd({
-  command: "agents",
+const AgentsConfigCommand = cmd({
+  command: "config",
   describe: "show configured agents with descriptions",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const agents = await Agent.list()
 
@@ -49,12 +51,12 @@ const SwarmAgentsCommand = cmd({
   },
 })
 
-const SwarmStatusCommand = cmd({
+const AgentsStatusCommand = cmd({
   command: "status",
   describe: "show active subagent sessions",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         UI.println(`${UI.Style.TEXT_HIGHLIGHT_BOLD}Subagent Sessions${UI.Style.TEXT_NORMAL}${EOL}`)
 
@@ -93,14 +95,19 @@ const SwarmStatusCommand = cmd({
   },
 })
 
-const SwarmPlanCommand = cmd({
+const AgentsPlanCommand = cmd({
   command: "plan",
   describe: "view current plan",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
-        const planPath = path.join(Instance.worktree, ".context/scratchpad/plan.md")
+        const root = await AFS.findRoot()
+        if (!root) {
+          UI.println(`${UI.Style.TEXT_DIM}AFS not initialized. Run 'ocode afs init'.${UI.Style.TEXT_NORMAL}`)
+          return
+        }
+        const planPath = path.join(root, "scratchpad/plan.md")
         const plan = await Bun.file(planPath)
           .text()
           .catch(() => null)
@@ -117,7 +124,7 @@ const SwarmPlanCommand = cmd({
   },
 })
 
-const SwarmSyncCommand = cmd({
+const AgentsSyncCommand = cmd({
   command: "sync",
   describe: "view or sync shared state",
   builder: (yargs) =>
@@ -132,11 +139,11 @@ const SwarmSyncCommand = cmd({
       }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const root = await AFS.findRoot()
         if (!root) {
-          UI.error("AFS not initialized. Run 'codewizard afs init' first.")
+          UI.error("AFS not initialized. Run 'ocode afs init' first.")
           return
         }
 
@@ -193,16 +200,16 @@ const SwarmSyncCommand = cmd({
   },
 })
 
-export const SwarmCommand = cmd({
-  command: "swarm",
-  describe: "manage agent swarm",
+export const AgentsCommand = cmd({
+  command: "agents",
+  describe: "manage agents",
   builder: (yargs) =>
     yargs
-      .command(SwarmListCommand)
-      .command(SwarmAgentsCommand)
-      .command(SwarmStatusCommand)
-      .command(SwarmPlanCommand)
-      .command(SwarmSyncCommand)
+      .command(AgentsListCommand)
+      .command(AgentsConfigCommand)
+      .command(AgentsStatusCommand)
+      .command(AgentsPlanCommand)
+      .command(AgentsSyncCommand)
       .demandCommand(),
   async handler() {},
 })

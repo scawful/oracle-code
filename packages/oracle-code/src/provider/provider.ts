@@ -52,14 +52,21 @@ export namespace Provider {
 
   const CUSTOM_LOADERS: Record<string, CustomLoader> = {
     async anthropic() {
+      const betasRaw =
+        Env.get("ANTHROPIC_BETAS") ??
+        Env.get("ANTHROPIC_BETA") ??
+        Env.get("OCODE_ANTHROPIC_BETAS")
+      const betas =
+        betasRaw
+          ?.split(",")
+          .map((b) => b.trim())
+          .filter((b) => b.length > 0) ?? []
+
       return {
         autoload: false,
-        options: {
-          headers: {
-            "anthropic-beta":
-              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
-          },
-        },
+        // Anthropic rejects unknown/unauthorized betas with a 400.
+        // Only send a beta header when explicitly configured.
+        options: betas.length > 0 ? { headers: { "anthropic-beta": betas.join(",") } } : {},
       }
     },
     async opencode(input) {
@@ -721,7 +728,7 @@ export namespace Provider {
         model.api.id = model.api.id ?? model.id ?? modelID
         if (modelID === "gpt-5-chat-latest" || (providerID === "openrouter" && modelID === "openai/gpt-5-chat"))
           delete provider.models[modelID]
-        if (model.status === "alpha" && !Flag.CODEWIZARD_ENABLE_EXPERIMENTAL_MODELS) delete provider.models[modelID]
+        if (model.status === "alpha" && !Flag.OCODE_ENABLE_EXPERIMENTAL_MODELS) delete provider.models[modelID]
         if (
           (configProvider?.blacklist && configProvider.blacklist.includes(modelID)) ||
           (configProvider?.whitelist && !configProvider.whitelist.includes(modelID))

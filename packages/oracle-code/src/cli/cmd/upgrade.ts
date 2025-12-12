@@ -5,7 +5,7 @@ import { Installation } from "../../installation"
 
 export const UpgradeCommand = {
   command: "upgrade [target]",
-  describe: "upgrade codewizard to the latest or a specific version",
+  describe: "upgrade ocode to the latest or a specific version",
   builder: (yargs: Argv) => {
     return yargs
       .positional("target", {

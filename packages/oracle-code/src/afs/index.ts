@@ -2,6 +2,10 @@ import path from "path"
 import fs from "fs/promises"
 import { Instance } from "../project/instance"
 
+// Re-export sub-modules for convenient access
+export { ContextEvaluator } from "./evaluator"
+export { ContextPrioritizer } from "./prioritizer"
+
 export namespace AFS {
   export type Policy = "read_only" | "writable" | "executable"
 
@@ -49,7 +53,7 @@ export namespace AFS {
    * Find the .context root by walking up from the given directory
    */
   export async function findRoot(startDir?: string): Promise<string | null> {
-    let current = startDir ?? Instance.worktree
+    let current = startDir ?? Instance.directory
     const root = path.parse(current).root
 
     while (current !== root) {
@@ -75,7 +79,7 @@ export namespace AFS {
     const root = await findRoot()
     if (!root) {
       throw new Error(
-        `AFS not initialized. No .context directory found.\nRun 'codewizard afs init' to initialize the Agentic File System.`,
+        `AFS not initialized. No .context directory found.\nRun 'ocode afs init' to initialize the Agentic File System.`,
       )
     }
     return root
@@ -148,19 +152,24 @@ export namespace AFS {
 
         for (const entry of entries) {
           const fullPath = path.join(currentPath, entry.name)
+          // Use fs.stat to follow symlinks and get real file info
           const stat = await fs.stat(fullPath).catch(() => null)
 
           if (stat) {
+            // Use stat.isDirectory() instead of entry.isDirectory()
+            // This correctly handles symlinks to directories
+            const isDir = stat.isDirectory()
+
             files.push({
               name: entry.name,
               path: fullPath,
               relativePath: path.relative(contextRoot, fullPath),
-              isDirectory: entry.isDirectory(),
+              isDirectory: isDir,
               size: stat.size,
               modifiedAt: stat.mtime,
             })
 
-            if (recursive && entry.isDirectory()) {
+            if (recursive && isDir) {
               await scan(fullPath)
             }
           }
@@ -205,7 +214,7 @@ export namespace AFS {
         .then((s) => s.isDirectory())
         .catch(() => false)
 
-      const files = exists ? await listDirectory(root, name as DirectoryName, false) : []
+      const files = exists ? await listDirectory(root, name as DirectoryName, true) : []
 
       directories.push({
         name,

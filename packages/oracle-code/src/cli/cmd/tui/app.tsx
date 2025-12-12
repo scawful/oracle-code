@@ -19,7 +19,10 @@ import { DialogHelp } from "./ui/dialog-help"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
 import { DialogSessionList } from "@tui/component/dialog-session-list"
-import { KeybindProvider } from "@tui/context/keybind"
+import { KeybindProvider, useKeybind } from "@tui/context/keybind"
+import { WhichKeyProvider, useWhichKey } from "@tui/context/which-key"
+import { WhichKeyBar } from "@tui/component/which-key-bar"
+import { PanesProvider } from "@tui/context/panes"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { Home } from "@tui/routes/home"
 import { Session } from "@tui/routes/session"
@@ -35,12 +38,37 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { AFSProvider, useAFS } from "./context/afs"
-import { SwarmProvider, useSwarm } from "./context/swarm"
+import { AgentsProvider, useAgents } from "./context/agents"
+import { MetricsProvider } from "./context/metrics"
+import { ToMProvider } from "./context/tom"
+import { CognitiveProvider } from "./context/cognitive"
 import { DialogPlan } from "./component/dialog-plan"
-import { DialogSwarmStatus } from "./component/dialog-swarm-status"
+import { DialogAgentsStatus } from "./component/dialog-agents-status"
+import { DialogMetrics } from "./component/dialog-metrics"
+import { DialogToMStatus } from "./component/dialog-tom-status"
+import { DialogRouting } from "./component/dialog-routing"
+import { DialogSessionTree } from "./component/dialog-session-tree"
+import { DialogAFSBrowser } from "./component/dialog-afs-browser"
+import { DialogAnalysisMode } from "./component/dialog-analysis-mode"
+import { AnalysisModeProvider, useAnalysisMode } from "./context/analysis-mode"
+import { AnalysisGateProvider, useAnalysisGate } from "./context/analysis-gate"
+import { KeyboardModeProvider } from "./context/keyboard-mode"
+import { OrchestrationProvider } from "./context/orchestration"
 import { DialogStateView } from "./component/dialog-state-view"
 import { DialogStateEdit } from "./component/dialog-state-edit"
 import { DialogConfirm } from "./ui/dialog-confirm"
+import { DialogOrchestration } from "./component/dialog-orchestration"
+import { DialogAgentLanes } from "./component/dialog-agent-lanes"
+import { TaskOutcomeWatcher } from "./component/task-outcome-watcher"
+import { LaneSplitViewController } from "./component/lane-split-view"
+import { CognitiveActionsConnector } from "./component/cognitive-actions"
+import {
+  DialogWorkspaceSave,
+  DialogWorkspaceLoad,
+  DialogWorkspaceDelete,
+  DialogWorkspaceRename,
+  DialogWorkspaceList,
+} from "./component/dialog-workspace"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -125,19 +153,39 @@ export function tui(input: { url: string; args: Args; onExit?: () => Promise<voi
                           <ThemeProvider mode={mode}>
                             <LocalProvider>
                               <AFSProvider>
-                              <SwarmProvider>
-                                <KeybindProvider>
-                                  <DialogProvider>
-                                    <CommandProvider>
-                                      <PromptHistoryProvider>
-                                        <PromptRefProvider>
-                                          <App />
-                                        </PromptRefProvider>
-                                      </PromptHistoryProvider>
-                                    </CommandProvider>
-                                  </DialogProvider>
-                                </KeybindProvider>
-                              </SwarmProvider>
+                                <AgentsProvider>
+                                  <MetricsProvider>
+                                    <ToMProvider>
+                                      <CognitiveProvider>
+                                      <AnalysisModeProvider>
+                                        <AnalysisGateProvider>
+                                        <OrchestrationProvider>
+                                        <KeybindProvider>
+                                          <WhichKeyProvider>
+                                            <PanesProvider>
+                                          <KeyboardModeProvider>
+                                      <DialogProvider>
+                                        <CommandProvider>
+                                          <PromptHistoryProvider>
+                                            <PromptRefProvider>
+                                              <WhichKeyConnector />
+                                              <CognitiveActionsConnector />
+                                              <App />
+                                            </PromptRefProvider>
+                                          </PromptHistoryProvider>
+                                        </CommandProvider>
+                                      </DialogProvider>
+                                          </KeyboardModeProvider>
+                                            </PanesProvider>
+                                          </WhichKeyProvider>
+                                        </KeybindProvider>
+                                        </OrchestrationProvider>
+                                        </AnalysisGateProvider>
+                                      </AnalysisModeProvider>
+                                      </CognitiveProvider>
+                                    </ToMProvider>
+                                  </MetricsProvider>
+                                </AgentsProvider>
                               </AFSProvider>
                             </LocalProvider>
                           </ThemeProvider>
@@ -161,6 +209,39 @@ export function tui(input: { url: string; args: Args; onExit?: () => Promise<voi
   })
 }
 
+/**
+ * WhichKeyConnector - Wires up which-key to the keybind system
+ * This component doesn't render anything, just sets up the integration
+ */
+function WhichKeyConnector() {
+  const keybind = useKeybind()
+  const whichKey = useWhichKey()
+  const command = useCommandDialog()
+
+  onMount(() => {
+    // Wire up which-key to keybind
+    keybind.setWhichKeyHandler({
+      onActivate: () => {
+        whichKey.activate()
+      },
+      onDeactivate: () => {
+        whichKey.deactivate()
+      },
+      onKey: (key: string) => {
+        return whichKey.handleKey(key)
+      },
+      isActive: () => whichKey.active,
+    })
+
+    // Wire up which-key to command system for keybind triggers
+    whichKey.setKeybindTrigger((key: string) => {
+      command.trigger(key)
+    })
+  })
+
+  return null
+}
+
 function App() {
   const route = useRoute()
   const dimensions = useTerminalDimensions()
@@ -168,6 +249,8 @@ function App() {
   renderer.disableStdoutInterception()
   const dialog = useDialog()
   const local = useLocal()
+  const analysisMode = useAnalysisMode()
+  const analysisGate = useAnalysisGate()
   const kv = useKV()
   const command = useCommandDialog()
   const { event } = useSDK()
@@ -183,15 +266,15 @@ function App() {
 
   // Update terminal window title based on current route and session
   createEffect(() => {
-    if (route.data.type === "root") {
-      renderer.setTerminalTitle("codewizard")
+    if (route.data.type === "home") {
+      renderer.setTerminalTitle("ocode")
       return
     }
 
     if (route.data.type === "session") {
       const session = sync.session.get(route.data.sessionID)
       if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("codewizard")
+        renderer.setTerminalTitle("ocode")
         return
       }
 
@@ -342,25 +425,207 @@ function App() {
       },
     },
     {
-      title: "Swarm status",
-      value: "swarm.status",
-      category: "Swarm",
+      title: "Analysis mode",
+      value: "analysis.mode",
+      category: "Analysis",
       onSelect: () => {
-        dialog.replace(() => <DialogSwarmStatus />)
+        dialog.replace(() => <DialogAnalysisMode />)
       },
     },
     {
-      title: "AFS status",
-      value: "afs.status",
-      category: "Swarm",
+      title: "Analysis mode cycle",
+      value: "analysis.cycle",
+      keybind: "analysis_cycle" as any,
+      category: "Analysis",
+      disabled: true,
       onSelect: () => {
-        toast.show({ message: "Run 'codewizard afs status' in terminal", variant: "info" })
+        analysisMode.cycle(1)
+      },
+    },
+    {
+      title: "Analysis mode cycle reverse",
+      value: "analysis.cycle.reverse",
+      keybind: "analysis_cycle_reverse" as any,
+      category: "Analysis",
+      disabled: true,
+      onSelect: () => {
+        analysisMode.cycle(-1)
+      },
+    },
+    {
+      title: "Toggle Eval mode",
+      value: "analysis.eval",
+      category: "Analysis",
+      onSelect: () => {
+        analysisMode.toggle("eval")
+      },
+    },
+    {
+      title: "Toggle ToM mode",
+      value: "analysis.tom",
+      category: "Analysis",
+      onSelect: () => {
+        analysisMode.toggle("tom")
+      },
+    },
+    {
+      title: "Toggle Metrics mode",
+      value: "analysis.metrics",
+      category: "Analysis",
+      onSelect: () => {
+        analysisMode.toggle("metrics")
+      },
+    },
+    {
+      title: "Toggle Critic mode",
+      value: "analysis.critic",
+      category: "Analysis",
+      onSelect: () => {
+        analysisMode.toggle("critic")
+      },
+    },
+    {
+      title: "Toggle Emotional mode",
+      value: "analysis.emotional",
+      category: "Analysis",
+      onSelect: () => {
+        analysisMode.toggle("emotional")
+      },
+    },
+    // Cognitive Protocol commands
+    {
+      title: "Cognitive status",
+      value: "cognitive.status",
+      category: "Cognitive",
+      onSelect: (dialog) => {
+        // Show cognitive panel in sidebar or status
+        toast.show({ message: "Cognitive status available in sidebar panel", variant: "info" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Emotional state",
+      value: "cognitive.emotions",
+      category: "Cognitive",
+      onSelect: (dialog) => {
+        toast.show({ message: "Use /emotions command for detailed emotional state", variant: "info" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Analysis triggers",
+      value: "cognitive.triggers",
+      category: "Cognitive",
+      onSelect: (dialog) => {
+        toast.show({ message: "Use /analysis triggers command to manage triggers", variant: "info" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Analysis gate mode",
+      value: "cognitive.gate.mode",
+      category: "Cognitive",
+      onSelect: (dialog) => {
+        analysisGate.cycleMode()
+        toast.show({ message: `Gate mode: ${analysisGate.modeLabel}`, variant: "info" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Accept pending analysis",
+      value: "cognitive.gate.accept",
+      category: "Cognitive",
+      disabled: !analysisGate.hasPending,
+      onSelect: async (dialog) => {
+        if (analysisGate.currentPending) {
+          await analysisGate.accept(analysisGate.currentPending.id)
+          toast.show({ message: "Analysis accepted", variant: "success" })
+        }
+        dialog.clear()
+      },
+    },
+    {
+      title: "Deny pending analysis",
+      value: "cognitive.gate.deny",
+      category: "Cognitive",
+      disabled: !analysisGate.hasPending,
+      onSelect: (dialog) => {
+        if (analysisGate.currentPending) {
+          analysisGate.deny(analysisGate.currentPending.id)
+          toast.show({ message: "Analysis denied", variant: "info" })
+        }
+        dialog.clear()
+      },
+    },
+    {
+      title: "Orchestration",
+      value: "orchestration.view",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogOrchestration />)
+      },
+    },
+    {
+      title: "Agent lanes",
+      value: "agents.lanes",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogAgentLanes />)
+      },
+    },
+    {
+      title: "Agents status",
+      value: "agents.status",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogAgentsStatus />)
+      },
+    },
+    {
+      title: "Coordination metrics",
+      value: "metrics.view",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogMetrics />)
+      },
+    },
+    {
+      title: "Theory of Mind status",
+      value: "tom.status",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogToMStatus />)
+      },
+    },
+    {
+      title: "Routing recommendation",
+      value: "routing.recommend",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogRouting />)
+      },
+    },
+    {
+      title: "Session hierarchy",
+      value: "session.tree",
+      category: "Agents",
+      onSelect: () => {
+        dialog.replace(() => <DialogSessionTree />)
+      },
+    },
+    {
+      title: "AFS browser",
+      value: "afs.browser",
+      keybind: "afs_browser" as any,
+      category: "AFS",
+      onSelect: () => {
+        dialog.replace(() => <DialogAFSBrowser />)
       },
     },
     {
       title: "View AFS plan",
       value: "afs.plan.view",
-      category: "Swarm",
+      category: "AFS",
       onSelect: () => {
         dialog.replace(() => <DialogPlan />)
       },
@@ -488,6 +753,52 @@ function App() {
         process.kill(0, "SIGTSTP")
       },
     },
+    // Workspace management
+    {
+      title: "Save workspace",
+      value: "workspace.save",
+      keybind: "workspace_save",
+      category: "Workspace",
+      onSelect: () => {
+        dialog.replace(() => <DialogWorkspaceSave />)
+      },
+    },
+    {
+      title: "Load workspace",
+      value: "workspace.load",
+      keybind: "workspace_load",
+      category: "Workspace",
+      onSelect: () => {
+        dialog.replace(() => <DialogWorkspaceLoad />)
+      },
+    },
+    {
+      title: "Delete workspace",
+      value: "workspace.delete",
+      keybind: "workspace_delete",
+      category: "Workspace",
+      onSelect: () => {
+        dialog.replace(() => <DialogWorkspaceDelete />)
+      },
+    },
+    {
+      title: "Rename workspace",
+      value: "workspace.rename",
+      keybind: "workspace_rename",
+      category: "Workspace",
+      onSelect: () => {
+        dialog.replace(() => <DialogWorkspaceRename />)
+      },
+    },
+    {
+      title: "List workspaces",
+      value: "workspace.list",
+      keybind: "workspace_list",
+      category: "Workspace",
+      onSelect: () => {
+        dialog.replace(() => <DialogWorkspaceList />)
+      },
+    },
   ])
 
   createEffect(() => {
@@ -562,7 +873,7 @@ function App() {
     toast.show({
       variant: "info",
       title: "Update Available",
-      message: `v${evt.properties.version} is available. Run 'codewizard upgrade' to update.`,
+      message: `v${evt.properties.version} is available. Run 'ocode upgrade' to update.`,
       duration: 10000,
     })
   })
@@ -573,7 +884,7 @@ function App() {
       height={dimensions().height}
       backgroundColor={theme.background}
       onMouseUp={async () => {
-        if (Flag.CODEWIZARD_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
+        if (Flag.OCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
           renderer.clearSelection()
           return
         }
@@ -599,6 +910,11 @@ function App() {
           <Session />
         </Match>
       </Switch>
+      <TaskOutcomeWatcher />
+      {/* Lane split view controller - monitors subagent spawns */}
+      <LaneSplitViewController />
+      {/* Which-key bottom bar */}
+      <WhichKeyBar />
     </box>
   )
 }

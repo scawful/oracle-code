@@ -18,7 +18,7 @@ export const AfsListTool = Tool.define("afs_list", {
     if (!root) {
       return {
         title: "AFS Not Found",
-        output: `AFS not initialized. No .context directory found.\nRun 'codewizard afs init' to initialize the Agentic File System.`,
+        output: `AFS not initialized. No .context directory found.\nRun 'ocode afs init' to initialize the Agentic File System.`,
         metadata: {
           exists: false,
           root: "",

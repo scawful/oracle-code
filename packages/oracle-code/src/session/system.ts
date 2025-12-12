@@ -2,6 +2,7 @@ import { Ripgrep } from "../file/ripgrep"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
 import { Config } from "../config/config"
+import { CognitiveIntegration } from "../cognitive"
 
 import { Instance } from "../project/instance"
 import path from "path"
@@ -144,5 +145,15 @@ export namespace SystemPrompt {
       default:
         return [PROMPT_TITLE]
     }
+  }
+
+  /**
+   * Get cognitive protocol context (metacognition + goals).
+   * Returns empty array if AFS is not initialized or no cognitive state exists.
+   */
+  export async function cognitive(): Promise<string[]> {
+    const context = await CognitiveIntegration.getPromptContext()
+    if (!context) return []
+    return [context]
   }
 }

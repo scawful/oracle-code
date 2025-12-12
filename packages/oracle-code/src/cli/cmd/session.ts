@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import type { Argv } from "yargs"
 import { cmd } from "./cmd"
 import { Session } from "../../session"
@@ -31,7 +32,7 @@ export const SessionListCommand = cmd({
       })
   },
   handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const sessions = []
       for await (const session of Session.list()) {
         if (!session.parentID) {

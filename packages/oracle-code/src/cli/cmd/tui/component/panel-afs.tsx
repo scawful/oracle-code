@@ -42,20 +42,29 @@ export function AFSPanel() {
   )
 
   return (
-    <Show when={afs.exists}>
-      <box>
-        <box
-          flexDirection="row"
-          gap={1}
-          onMouseDown={() => setExpanded("afs", !expanded.afs)}
-        >
-          <text fg={theme.text}>{expanded.afs ? "▼" : "▶"}</text>
-          <text fg={theme.text}>
-            <b>AFS Context</b>
-          </text>
+    <box>
+      <box
+        flexDirection="row"
+        gap={1}
+        onMouseDown={() => setExpanded("afs", !expanded.afs)}
+      >
+        <text fg={theme.text}>{expanded.afs ? "▼" : "▶"}</text>
+        <text fg={afs.exists ? theme.success : theme.textMuted}>●</text>
+        <text fg={theme.text}>
+          <b>AFS Context</b>
+        </text>
+        <Show when={afs.exists} fallback={<text fg={theme.textMuted}>(not found)</text>}>
           <text fg={theme.textMuted}>({totalFiles()} files)</text>
-        </box>
-        <Show when={expanded.afs}>
+        </Show>
+      </box>
+      <Show when={expanded.afs}>
+        <Show when={!afs.exists}>
+          <box paddingLeft={2}>
+            <text fg={theme.textMuted}>No .context directory found.</text>
+            <text fg={theme.textMuted}>Run 'ocode afs init' to initialize.</text>
+          </box>
+        </Show>
+        <Show when={afs.exists}>
           <For each={afs.directories}>
             {(dir) => (
               <box paddingLeft={1}>
@@ -109,7 +118,7 @@ export function AFSPanel() {
             </box>
           </Show>
         </Show>
-      </box>
-    </Show>
+      </Show>
+    </box>
   )
 }

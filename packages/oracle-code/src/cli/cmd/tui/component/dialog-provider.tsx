@@ -9,6 +9,7 @@ import { useTheme } from "../context/theme"
 import { TextAttributes } from "@opentui/core"
 import type { ProviderAuthAuthorization } from "@oracle-code/sdk/v2"
 import { DialogModel } from "./dialog-model"
+import { useToast } from "../ui/toast"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
   opencode: 0,
@@ -187,6 +188,7 @@ function ApiMethod(props: ApiMethodProps) {
   const sdk = useSDK()
   const sync = useSync()
   const { theme } = useTheme()
+  const toast = useToast()
 
   return (
     <DialogPrompt
@@ -205,17 +207,32 @@ function ApiMethod(props: ApiMethodProps) {
         ) : undefined
       }
       onConfirm={async (value) => {
-        if (!value) return
-        sdk.client.auth.set({
-          providerID: props.providerID,
-          auth: {
-            type: "api",
-            key: value,
-          },
-        })
-        await sdk.client.instance.dispose()
-        await sync.bootstrap()
-        dialog.replace(() => <DialogModel providerID={props.providerID} />)
+        const key = value.trim()
+        if (!key) {
+          toast.show({ variant: "warning", message: "API key is required." })
+          return
+        }
+
+        try {
+          // Must await auth.set before dispose to ensure key is persisted
+          await sdk.client.auth.set({
+            providerID: props.providerID,
+            auth: {
+              type: "api",
+              key,
+            },
+          })
+          await sdk.client.instance.dispose().catch(() => {})
+          await sync.bootstrap().catch(() => {})
+          dialog.replace(() => <DialogModel providerID={props.providerID} />)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          toast.show({
+            variant: "error",
+            title: "Failed to save API key",
+            message,
+          })
+        }
       }}
     />
   )

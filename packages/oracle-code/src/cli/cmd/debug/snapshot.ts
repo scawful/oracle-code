@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { Snapshot } from "../../../snapshot"
 import { bootstrap } from "../../bootstrap"
 import { cmd } from "../cmd"
@@ -11,7 +12,7 @@ export const SnapshotCommand = cmd({
 const TrackCommand = cmd({
   command: "track",
   async handler() {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       console.log(await Snapshot.track())
     })
   },
@@ -26,7 +27,7 @@ const PatchCommand = cmd({
       demandOption: true,
     }),
   async handler(args) {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       console.log(await Snapshot.patch(args.hash))
     })
   },
@@ -41,7 +42,7 @@ const DiffCommand = cmd({
       demandOption: true,
     }),
   async handler(args) {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       console.log(await Snapshot.diff(args.hash))
     })
   },

@@ -23,7 +23,7 @@ interface RemovalTargets {
 
 export const UninstallCommand = {
   command: "uninstall",
-  describe: "uninstall codewizard and remove all related files",
+  describe: "uninstall ocode and remove all related files",
   builder: (yargs: Argv) =>
     yargs
       .option("keep-config", {

@@ -4,6 +4,7 @@ import z from "zod"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
 import { AFS } from "../afs"
+import { CognitiveIntegration } from "../cognitive/integration"
 
 export namespace State {
   export const Event = {
@@ -86,7 +87,7 @@ export namespace State {
   /**
    * Serialize state data to markdown format
    */
-  export function serialize(data: StateData): string {
+  export function serialize(data: StateData, cognitiveExport?: string | null): string {
     const sections = new Map<Section, StateEntry[]>()
 
     for (const entry of data.entries) {
@@ -106,6 +107,13 @@ export namespace State {
         content += `- **${entry.key}**: ${entry.value} [${entry.timestamp}]\n`
       }
       content += "\n"
+    }
+
+    // Append cognitive state export if provided
+    if (cognitiveExport) {
+      content += "---\n\n"
+      content += "# Cognitive Protocol State\n\n"
+      content += cognitiveExport
     }
 
     return content
@@ -182,7 +190,10 @@ export namespace State {
     }
 
     data.lastUpdated = new Date().toISOString()
-    await Bun.write(statePath, serialize(data))
+    
+    // Include cognitive export when writing state
+    const cognitiveExport = await CognitiveIntegration.getStateMdExport()
+    await Bun.write(statePath, serialize(data, cognitiveExport))
 
     Bus.publish(Event.Updated, {
       root: contextRoot,
@@ -213,15 +224,19 @@ export namespace State {
 
   /**
    * Sync state - write current understanding to state.md
+   * Includes cognitive protocol state (metacognition, goals, knowledge)
    */
   export async function sync(contextRoot: string): Promise<void> {
     const data = (await getData(contextRoot)) || { entries: [], lastUpdated: "" }
     data.lastUpdated = new Date().toISOString()
 
+    // Get cognitive state export
+    const cognitiveExport = await CognitiveIntegration.getStateMdExport()
+
     const statePath = getStatePath(contextRoot)
     const scratchpadDir = path.dirname(statePath)
     await fs.mkdir(scratchpadDir, { recursive: true })
-    await Bun.write(statePath, serialize(data))
+    await Bun.write(statePath, serialize(data, cognitiveExport))
 
     Bus.publish(Event.Updated, { root: contextRoot })
   }

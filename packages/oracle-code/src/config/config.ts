@@ -461,6 +461,9 @@ export namespace Config {
       agent_list: z.string().optional().default("<leader>a").describe("List agents"),
       agent_cycle: z.string().optional().default("tab").describe("Next agent"),
       agent_cycle_reverse: z.string().optional().default("shift+tab").describe("Previous agent"),
+      analysis_cycle: z.string().optional().default("ctrl+a").describe("Cycle analysis modes"),
+      analysis_cycle_reverse: z.string().optional().default("ctrl+shift+a").describe("Cycle analysis modes reverse"),
+      afs_browser: z.string().optional().default("ctrl+e").describe("Open AFS file browser"),
       input_clear: z.string().optional().default("ctrl+c").describe("Clear input field"),
       input_paste: z.string().optional().default("ctrl+v").describe("Paste from clipboard"),
       input_submit: z.string().optional().default("return").describe("Submit input"),
@@ -470,6 +473,32 @@ export namespace Config {
       session_child_cycle: z.string().optional().default("<leader>right").describe("Next child session"),
       session_child_cycle_reverse: z.string().optional().default("<leader>left").describe("Previous child session"),
       terminal_suspend: z.string().optional().default("ctrl+z").describe("Suspend terminal"),
+      // Pane/window management keybinds
+      window_split_vertical: z.string().optional().default("<leader>w/").describe("Split pane vertically"),
+      window_split_horizontal: z.string().optional().default("<leader>w-").describe("Split pane horizontally"),
+      window_close: z.string().optional().default("<leader>wd").describe("Close current pane"),
+      window_maximize: z.string().optional().default("<leader>wm").describe("Toggle maximize pane"),
+      window_focus_left: z.string().optional().default("<leader>wh").describe("Focus pane to the left"),
+      window_focus_down: z.string().optional().default("<leader>wj").describe("Focus pane below"),
+      window_focus_up: z.string().optional().default("<leader>wk").describe("Focus pane above"),
+      window_focus_right: z.string().optional().default("<leader>wl").describe("Focus pane to the right"),
+      window_balance: z.string().optional().default("<leader>w=").describe("Balance all pane sizes"),
+      window_only: z.string().optional().default("<leader>wo").describe("Close all panes except current"),
+      window_cycle: z.string().optional().default("<leader>wTAB").describe("Cycle through pane history"),
+      window_previous: z.string().optional().default("<leader>wp").describe("Go to previous pane"),
+      window_grow: z.string().optional().default("<leader>w>").describe("Grow current pane"),
+      window_shrink: z.string().optional().default("<leader>w<").describe("Shrink current pane"),
+      window_preset_single: z.string().optional().default("<leader>w1").describe("Single pane layout"),
+      window_preset_dual: z.string().optional().default("<leader>w2").describe("Dual pane layout"),
+      window_preset_triple: z.string().optional().default("<leader>w3").describe("Triple pane layout"),
+      window_preset_quad: z.string().optional().default("<leader>w4").describe("Quad pane layout"),
+
+      // Workspace management
+      workspace_save: z.string().optional().default("<leader>Ws").describe("Save current layout as workspace"),
+      workspace_load: z.string().optional().default("<leader>Wl").describe("Load a saved workspace"),
+      workspace_delete: z.string().optional().default("<leader>Wd").describe("Delete a workspace"),
+      workspace_rename: z.string().optional().default("<leader>Wr").describe("Rename a workspace"),
+      workspace_list: z.string().optional().default("<leader>WL").describe("List all workspaces"),
     })
     .strict()
     .meta({

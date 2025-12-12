@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import path from "path"
 import { exec } from "child_process"
 import * as prompts from "@clack/prompts"
@@ -138,7 +139,7 @@ export const GithubInstallCommand = cmd({
   describe: "install the GitHub agent",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         {
           UI.empty()
@@ -376,7 +377,7 @@ export const GithubRunCommand = cmd({
         describe: "GitHub personal access token (github_pat_********)",
       }),
   async handler(args) {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const isMock = args.token || args.event
 
       const context = isMock ? (JSON.parse(args.event!) as Context) : github.context

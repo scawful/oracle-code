@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import type { Argv } from "yargs"
 import { Instance } from "../../project/instance"
 import { Provider } from "../../provider/provider"
@@ -32,7 +33,7 @@ export const ModelsCommand = cmd({
     }
 
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const providers = await Provider.list()
 

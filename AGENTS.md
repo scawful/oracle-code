@@ -1,59 +1,52 @@
-# CodeWizard Agent Swarm
+# Oracle Code Agent Squad
 
-## Core Philosophy
-**CodeWizard** operates as a swarm of specialized agents using an **Agentic File System (AFS)** to maintain context and state.
+Oracle Code operates as a squad of specialized agents using an **Agentic File System (AFS)** for shared context.
 
-## Agentic File System (AFS)
-We use the `.context/` directory as our shared brain.
-- **Read:** `.context/memory` for specs and rules.
-- **Write:** `.context/scratchpad` for plans and reasoning.
-- **Reference:** `.context/knowledge` for external data.
+## AFS Structure
 
-## Swarm Roles
-- **@general**: Coordinator and user interface.
-- **@planner**: Strategist. Creates plans in `.context/scratchpad`.
-- **@coder**: Implementer. Writes code.
-- **@critic**: Reviewer. Checks against specs.
-- **@researcher**: Investigator. Finds facts.
+The `.context/` directory serves as shared memory:
 
-## Instructions for Agents
-1. **Check Context:** Before acting, check `.context/memory` and `.context/scratchpad`.
-2. **Update Plan:** Keep the plan in `.context/scratchpad` up to date.
-3. **Collaborate:** If you are unsure, ask the user or refer to `@planner`.
+- `.context/memory` - Specs and rules (e.g., AGENTS_SPEC.md)
+- `.context/scratchpad` - Plans and reasoning
+- `.context/knowledge` - External data
 
----
+## Agent Roles
 
-## Debugging
+| Agent | Role |
+|-------|------|
+| `@general` | Coordinator, user interface |
+| `@planner` | Strategy, creates plans in scratchpad |
+| `@coder` | Implementation |
+| `@critic` | Review against specs |
+| `@researcher` | Investigation |
+| `@maintenance` | Parity checks & dependency management |
 
-- To test oracle-code in the `packages/oracle-code` directory you can run `bun dev`
+## Agent Protocol
+
+1. Check `.context/memory` and `.context/scratchpad` before acting
+2. Keep plans in `.context/scratchpad` updated
+3. Defer to `@planner` when uncertain
+
+## Development
+
+Run dev server:
+```bash
+cd packages/oracle-code
+bun dev
+```
 
 ## Tool Calling
 
-- ALWAYS USE PARALLEL TOOLS WHEN APPLICABLE. Here is an example illustrating how to execute 3 parallel file reads in this chat environment:
+Use parallel tool calls when applicable:
 
-json
+```json
 {
-"recipient_name": "multi_tool_use.parallel",
-"parameters": {
-"tool_uses": [
-{
-"recipient_name": "functions.read",
-"parameters": {
-"filePath": "path/to/file.tsx"
+  "recipient_name": "multi_tool_use.parallel",
+  "parameters": {
+    "tool_uses": [
+      { "recipient_name": "functions.read", "parameters": { "filePath": "file1.ts" } },
+      { "recipient_name": "functions.read", "parameters": { "filePath": "file2.ts" } }
+    ]
+  }
 }
-},
-{
-"recipient_name": "functions.read",
-"parameters": {
-"filePath": "path/to/file.ts"
-}
-},
-{
-"recipient_name": "functions.read",
-"parameters": {
-"filePath": "path/to/file.md"
-}
-}
-]
-}
-}
+```

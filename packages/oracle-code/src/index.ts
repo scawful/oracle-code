@@ -15,6 +15,7 @@ import { FormatError } from "./cli/error"
 import { ServeCommand } from "./cli/cmd/serve"
 import { DebugCommand } from "./cli/cmd/debug"
 import { StatsCommand } from "./cli/cmd/stats"
+import { MetricsCommand } from "./cli/cmd/metrics"
 import { McpCommand } from "./cli/cmd/mcp"
 import { GithubCommand } from "./cli/cmd/github"
 import { ExportCommand } from "./cli/cmd/export"
@@ -28,8 +29,9 @@ import { WebCommand } from "./cli/cmd/web"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
 import { AfsCommand } from "./cli/cmd/afs"
-import { SwarmCommand } from "./cli/cmd/swarm"
+import { AgentsCommand } from "./cli/cmd/agents"
 import { TomCommand } from "./cli/cmd/tom"
+import { OrchestrateCommand } from "./cli/cmd/orchestrate"
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -45,7 +47,7 @@ process.on("uncaughtException", (e) => {
 
 const cli = yargs(hideBin(process.argv))
   .parserConfiguration({ "populate--": true })
-  .scriptName("codewizard")
+  .scriptName("ocode")
   .wrap(100)
   .help("help", "show help")
   .alias("help", "h")
@@ -72,9 +74,9 @@ const cli = yargs(hideBin(process.argv))
     })
 
     process.env.AGENT = "1"
-    process.env.CODEWIZARD = "1"
+    process.env.OCODE = "1"
 
-    Log.Default.info("codewizard", {
+    Log.Default.info("ocode", {
       version: Installation.VERSION,
       args: process.argv.slice(2),
     })
@@ -96,14 +98,16 @@ const cli = yargs(hideBin(process.argv))
   .command(WebCommand)
   .command(ModelsCommand)
   .command(StatsCommand)
+  .command(MetricsCommand)
   .command(ExportCommand)
   .command(ImportCommand)
   .command(GithubCommand)
   .command(PrCommand)
   .command(SessionCommand)
   .command(AfsCommand)
-  .command(SwarmCommand)
+  .command(AgentsCommand)
   .command(TomCommand)
+  .command(OrchestrateCommand)
   .fail((msg) => {
     if (
       msg.startsWith("Unknown argument") ||

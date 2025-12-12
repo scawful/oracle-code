@@ -1716,14 +1716,19 @@ test("provider options are deeply merged", async () => {
     directory: tmp.path,
     init: async () => {
       Env.set("ANTHROPIC_API_KEY", "test-api-key")
+      Env.set("OCODE_ANTHROPIC_BETAS", "test-beta")
     },
     fn: async () => {
-      const providers = await Provider.list()
-      // Custom options should be merged
-      expect(providers["anthropic"].options.timeout).toBe(30000)
-      expect(providers["anthropic"].options.headers["X-Custom"]).toBe("custom-value")
-      // anthropic custom loader adds its own headers, they should coexist
-      expect(providers["anthropic"].options.headers["anthropic-beta"]).toBeDefined()
+      try {
+        const providers = await Provider.list()
+        // Custom options should be merged
+        expect(providers["anthropic"].options.timeout).toBe(30000)
+        expect(providers["anthropic"].options.headers["X-Custom"]).toBe("custom-value")
+        // Anthropic beta header is opt-in; ensure deep merge preserves both headers.
+        expect(providers["anthropic"].options.headers["anthropic-beta"]).toBe("test-beta")
+      } finally {
+        Env.remove("OCODE_ANTHROPIC_BETAS")
+      }
     },
   })
 })

@@ -1,17 +1,17 @@
-# CodeWizard (CLI)
+# Oracle Code (CLI)
 
-This is the core CLI for CodeWizard, an AI-powered development tool evolved from Oracle Code.
+Core CLI/TUI package for Oracle Code.
 
 ## Running from Source
 
-You can run the CLI directly using the wrapper script in the root:
+From the repo root:
 
 ```bash
-./codewizard
+./ocode
 ```
 
-Or via Bun:
+Or directly with Bun:
 
 ```bash
-bun run --cwd . src/index.ts
+bun run --cwd packages/oracle-code --conditions=browser src/index.ts
 ```

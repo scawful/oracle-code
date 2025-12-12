@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import type { Argv } from "yargs"
 import { cmd } from "./cmd"
 import { Session } from "../../session"
@@ -49,7 +50,7 @@ export const StatsCommand = cmd({
       })
   },
   handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const stats = await aggregateSessionStats(args.days, args.project)
       displayStats(stats, args.tools)
     })

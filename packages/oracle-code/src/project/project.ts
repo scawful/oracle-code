@@ -14,6 +14,8 @@ import { GlobalBus } from "@/bus/global"
 
 export namespace Project {
   const log = Log.create({ service: "project" })
+  const PROJECT_ID_FILENAME = "oracle-code"
+  const LEGACY_PROJECT_ID_FILENAMES = ["opencode", "codewizard"]
   export const Info = z
     .object({
       id: z.string(),
@@ -50,10 +52,34 @@ export namespace Project {
       await matches.return()
       if (git) {
         let worktree = path.dirname(git)
-        let id = await Bun.file(path.join(git, "opencode"))
+        const gitCommonDir = await $`git rev-parse --git-common-dir`
+          .quiet()
+          .nothrow()
+          .cwd(worktree)
+          .text()
+          .then((x) => x.trim())
+          .catch(() => "")
+        const gitDir = gitCommonDir ? path.resolve(worktree, gitCommonDir) : git
+
+        let id = await Bun.file(path.join(gitDir, PROJECT_ID_FILENAME))
           .text()
           .then((x) => x.trim())
           .catch(() => {})
+
+        if (!id) {
+          for (const legacyName of LEGACY_PROJECT_ID_FILENAMES) {
+            id = await Bun.file(path.join(gitDir, legacyName))
+              .text()
+              .then((x) => x.trim())
+              .catch(() => {})
+            if (id) break
+          }
+
+          if (id) {
+            await Bun.write(path.join(gitDir, PROJECT_ID_FILENAME), id)
+          }
+        }
+
         if (!id) {
           const roots = await $`git rev-list --max-parents=0 --all`
             .quiet()
@@ -68,7 +94,7 @@ export namespace Project {
                 .toSorted(),
             )
           id = roots[0]
-          if (id) Bun.file(path.join(git, "opencode")).write(id)
+          if (id) await Bun.write(path.join(gitDir, PROJECT_ID_FILENAME), id)
         }
         if (!id)
           return {
@@ -88,7 +114,7 @@ export namespace Project {
       return {
         id: "global",
         worktree: "/",
-        vcs: Info.shape.vcs.parse(Flag.CODEWIZARD_FAKE_VCS),
+        vcs: Info.shape.vcs.parse(Flag.OCODE_FAKE_VCS),
       }
     })
 
@@ -107,8 +133,10 @@ export namespace Project {
         await migrateFromGlobal(id, worktree)
       }
     }
-          if (Flag.CODEWIZARD_EXPERIMENTAL_ICON_DISCOVERY) discover(existing)
-      const result: Info = {
+
+    if (Flag.OCODE_EXPERIMENTAL_ICON_DISCOVERY) discover(existing)
+
+    const result: Info = {
       ...existing,
       worktree,
       vcs: vcs as Info["vcs"],

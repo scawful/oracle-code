@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { Log } from "@/util/log"
 import { bootstrap } from "../bootstrap"
 import { cmd } from "./cmd"
@@ -37,7 +38,7 @@ export const AcpCommand = cmd({
       })
   },
   handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const server = Server.listen({
         port: args.port,
         hostname: args.hostname,

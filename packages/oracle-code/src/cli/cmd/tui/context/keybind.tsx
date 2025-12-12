@@ -3,10 +3,20 @@ import { useSync } from "@tui/context/sync"
 import { Keybind } from "@/util/keybind"
 import { pipe, mapValues } from "remeda"
 import type { KeybindsConfig } from "@oracle-code/sdk/v2"
-import type { ParsedKey, Renderable } from "@opentui/core"
+import { TextareaRenderable, type ParsedKey, type Renderable } from "@opentui/core"
 import { createStore } from "solid-js/store"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { createSimpleContext } from "./helper"
+
+/**
+ * Callback type for which-key integration
+ */
+export type WhichKeyHandler = {
+  onActivate: () => void
+  onDeactivate: () => void
+  onKey: (key: string) => boolean // Returns true if handled
+  isActive: () => boolean
+}
 
 export const { use: useKeybind, provider: KeybindProvider } = createSimpleContext({
   name: "Keybind",
@@ -23,25 +33,25 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     })
     const renderer = useRenderer()
 
+    // Which-key handler (set by WhichKeyProvider)
+    let whichKeyHandler: WhichKeyHandler | null = null
+
     let focus: Renderable | null
-    let timeout: NodeJS.Timeout
     function leader(active: boolean) {
       if (active) {
         setStore("leader", true)
         focus = renderer.currentFocusedRenderable
         focus?.blur()
-        if (timeout) clearTimeout(timeout)
-        timeout = setTimeout(() => {
-          if (!store.leader) return
-          leader(false)
-          if (focus) {
-            focus.focus()
-          }
-        }, 2000)
+
+        // Notify which-key of activation
+        whichKeyHandler?.onActivate()
         return
       }
 
       if (!active) {
+        // Notify which-key of deactivation
+        whichKeyHandler?.onDeactivate()
+
         if (focus && !renderer.currentFocusedRenderable) {
           focus.focus()
         }
@@ -50,16 +60,72 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     }
 
     useKeyboard(async (evt) => {
-      if (!store.leader && result.match("leader", evt)) {
-        leader(true)
-        return
+      if (!store.leader) {
+        const leaderBindings = keybinds().leader ?? []
+        const parsed = result.parse(evt)
+        const normalized = { ...parsed, leader: false }
+        const aliasNames = normalized.name === " "
+          ? [" ", "space"]
+          : normalized.name === "space"
+            ? ["space", " "]
+            : [normalized.name]
+
+        const isLeaderKey = leaderBindings.some((binding) =>
+          aliasNames.some((name) => Keybind.match(binding, { ...normalized, name })),
+        )
+
+        const focused = renderer.currentFocusedRenderable
+        const isInputFocused = focused instanceof TextareaRenderable
+        const isPlainSpaceLeader = leaderBindings.some((binding) => {
+          if (binding.ctrl || binding.meta || binding.shift) return false
+          return binding.name === "space" || binding.name === " "
+        })
+        const isPlainSpaceKey = !evt.ctrl && !evt.meta && !evt.shift && (evt.name === " " || evt.name === "space")
+
+        if (isLeaderKey && !(isInputFocused && isPlainSpaceLeader && isPlainSpaceKey)) {
+          leader(true)
+          return
+        }
       }
 
-      if (store.leader && evt.name) {
-        setImmediate(() => {
-          if (focus && renderer.currentFocusedRenderable === focus) {
-            focus.focus()
+      if (store.leader) {
+        const leaderBindings = keybinds().leader ?? []
+        if (leaderBindings.length > 0) {
+          const parsed = result.parse(evt)
+          const normalized = { ...parsed, leader: false }
+          const aliasNames = normalized.name === " "
+            ? [" ", "space"]
+            : normalized.name === "space"
+              ? ["space", " "]
+              : [normalized.name]
+
+          const isLeaderAgain = leaderBindings.some((binding) =>
+            aliasNames.some((name) => Keybind.match(binding, { ...normalized, name })),
+          )
+
+          if (isLeaderAgain) {
+            leader(false)
+            return
           }
+        }
+      }
+
+      if (store.leader) {
+        const keyName = evt.name ?? ""
+        // If which-key is registered, let it handle the key
+        const handler = whichKeyHandler
+        if (handler) {
+          const handled = handler.onKey(keyName)
+          if (handled) {
+            setImmediate(() => {
+              if (!handler.isActive()) leader(false)
+            })
+            return
+          }
+        }
+
+        // Fall back to original behavior - deactivate and restore focus
+        setImmediate(() => {
           leader(false)
         })
       }
@@ -104,6 +170,18 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         if (!first) return ""
         const result = Keybind.toString(first)
         return result.replace("<leader>", Keybind.toString(keybinds().leader![0]!))
+      },
+      /**
+       * Register which-key handler for leader key integration
+       */
+      setWhichKeyHandler(handler: WhichKeyHandler | null) {
+        whichKeyHandler = handler
+      },
+      /**
+       * Programmatically deactivate leader mode
+       */
+      deactivateLeader() {
+        leader(false)
       },
     }
     return result

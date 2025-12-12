@@ -56,6 +56,8 @@ import { DialogTimeline } from "./dialog-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
+import { usePanes, type PaneNode, type PaneLeaf } from "@tui/context/panes"
+import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "../../util/clipboard"
 import { Toast, useToast } from "../../ui/toast"
@@ -66,6 +68,90 @@ import { Footer } from "./footer.tsx"
 import { usePromptRef } from "../../context/prompt"
 
 addDefaultParsers(parsers.parsers)
+
+/**
+ * SecondaryPaneArea - Renders secondary panes (excluding "main")
+ *
+ * This component renders the pane tree but skips the "main" pane
+ * since it's already rendered by the session route.
+ */
+function SecondaryPaneArea(props: { sessionID: string }) {
+  const panes = usePanes()
+  const { theme } = useTheme()
+
+  // Find the secondary pane tree (everything except "main")
+  // When user splits from main, we get a tree like:
+  //   split -> [main, newPane]
+  // We want to render only newPane
+  const secondaryRoot = createMemo(() => {
+    const root = panes.root
+    if (root.type === "leaf") {
+      // Only main pane, shouldn't happen when this component renders
+      return null
+    }
+    // Check if main is in the first or second position
+    if (root.first.type === "leaf" && root.first.id === "main") {
+      return root.second
+    }
+    if (root.second.type === "leaf" && root.second.id === "main") {
+      return root.first
+    }
+    // Main is nested deeper, render the whole tree
+    return root
+  })
+
+  return (
+    <Show when={secondaryRoot()}>
+      {(root) => <SecondaryPaneRenderer node={root()} sessionID={props.sessionID} />}
+    </Show>
+  )
+}
+
+/**
+ * Recursive renderer for secondary pane tree
+ */
+function SecondaryPaneRenderer(props: { node: PaneNode; sessionID: string }) {
+  const panes = usePanes()
+  const { theme } = useTheme()
+
+  // Skip rendering the "main" pane
+  if (props.node.type === "leaf" && props.node.id === "main") {
+    return null
+  }
+
+  // Handle leaf node
+  if (props.node.type === "leaf") {
+    const leaf = props.node
+    const isActive = createMemo(() => panes.activeId === leaf.id)
+    return <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
+  }
+
+  // Handle split node
+  const split = props.node
+  const isVertical = split.direction === "vertical"
+
+  return (
+    <box flexDirection={isVertical ? "row" : "column"} flexGrow={1} width="100%" height="100%">
+      {/* First pane */}
+      <box flexGrow={split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+        <SecondaryPaneRenderer node={split.first} sessionID={props.sessionID} />
+      </box>
+
+      {/* Split border/divider */}
+      <box
+        backgroundColor={theme.border}
+        width={isVertical ? 1 : "100%"}
+        height={isVertical ? "100%" : 1}
+        flexShrink={0}
+      />
+
+      {/* Second pane */}
+      <box flexGrow={1 - split.ratio} flexShrink={0} flexBasis={0} overflow="hidden">
+        <SecondaryPaneRenderer node={split.second} sessionID={props.sessionID} />
+      </box>
+    </box>
+  )
+}
 
 class CustomSpeedScroll implements ScrollAcceleration {
   constructor(private speed: number) {}
@@ -219,6 +305,22 @@ export function Session() {
   }
 
   const local = useLocal()
+  const panes = usePanes()
+
+  // Load pane layout for this session
+  createEffect(() => {
+    panes.loadLayout(route.sessionID)
+  })
+
+  // Check if there are secondary panes (panes other than the main chat)
+  const hasSecondaryPanes = createMemo(() => panes.hasSecondaryPanes)
+
+  // When secondary panes are visible, adjust content width
+  const paneContentWidth = createMemo(() => {
+    if (!hasSecondaryPanes()) return contentWidth()
+    // When split, the main chat area takes ~60% by default
+    return Math.floor(contentWidth() * 0.6)
+  })
 
   function moveChild(direction: number) {
     const parentID = session()?.parentID ?? session()?.id
@@ -827,145 +929,156 @@ export function Session() {
         sync,
       }}
     >
-      <box flexDirection="row">
-        <box flexGrow={1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
-          <Show when={session()}>
-            <Show when={!sidebarVisible()}>
-              <Header />
-            </Show>
-            <scrollbox
-              ref={(r) => (scroll = r)}
-              verticalScrollbarOptions={{
-                paddingLeft: 1,
-                visible: showScrollbar(),
-                trackOptions: {
-                  backgroundColor: theme.backgroundElement,
-                  foregroundColor: theme.border,
-                },
-              }}
-              stickyScroll={true}
-              stickyStart="bottom"
-              flexGrow={1}
-              scrollAcceleration={scrollAcceleration()}
-            >
-              <For each={messages()}>
-                {(message, index) => (
-                  <Switch>
-                    <Match when={message.id === revert()?.messageID}>
-                      {(function () {
-                        const command = useCommandDialog()
-                        const [hover, setHover] = createSignal(false)
-                        const dialog = useDialog()
+      <box position="relative" flexGrow={1}>
+        <box flexDirection="row">
+          {/* Main content area - either full width or split with secondary panes */}
+          <box flexGrow={hasSecondaryPanes() ? 0.6 : 1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
+            <Show when={session()}>
+              <Show when={!sidebarVisible()}>
+                <Header />
+              </Show>
+              <scrollbox
+                ref={(r) => (scroll = r)}
+                verticalScrollbarOptions={{
+                  paddingLeft: 1,
+                  visible: showScrollbar(),
+                  trackOptions: {
+                    backgroundColor: theme.backgroundElement,
+                    foregroundColor: theme.border,
+                  },
+                }}
+                stickyScroll={true}
+                stickyStart="bottom"
+                flexGrow={1}
+                scrollAcceleration={scrollAcceleration()}
+              >
+                <For each={messages()}>
+                  {(message, index) => (
+                    <Switch>
+                      <Match when={message.id === revert()?.messageID}>
+                        {(function () {
+                          const command = useCommandDialog()
+                          const [hover, setHover] = createSignal(false)
+                          const dialog = useDialog()
 
-                        const handleUnrevert = async () => {
-                          const confirmed = await DialogConfirm.show(
-                            dialog,
-                            "Confirm Redo",
-                            "Are you sure you want to restore the reverted messages?",
-                          )
-                          if (confirmed) {
-                            command.trigger("session.redo")
+                          const handleUnrevert = async () => {
+                            const confirmed = await DialogConfirm.show(
+                              dialog,
+                              "Confirm Redo",
+                              "Are you sure you want to restore the reverted messages?",
+                            )
+                            if (confirmed) {
+                              command.trigger("session.redo")
+                            }
                           }
-                        }
 
-                        return (
-                          <box
-                            onMouseOver={() => setHover(true)}
-                            onMouseOut={() => setHover(false)}
-                            onMouseUp={handleUnrevert}
-                            marginTop={1}
-                            flexShrink={0}
-                            border={["left"]}
-                            customBorderChars={SplitBorder.customBorderChars}
-                            borderColor={theme.backgroundPanel}
-                          >
+                          return (
                             <box
-                              paddingTop={1}
-                              paddingBottom={1}
-                              paddingLeft={2}
-                              backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                              onMouseOver={() => setHover(true)}
+                              onMouseOut={() => setHover(false)}
+                              onMouseUp={handleUnrevert}
+                              marginTop={1}
+                              flexShrink={0}
+                              border={["left"]}
+                              customBorderChars={SplitBorder.customBorderChars}
+                              borderColor={theme.backgroundPanel}
                             >
-                              <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                              <text fg={theme.textMuted}>
-                                <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
-                                restore
-                              </text>
-                              <Show when={revert()!.diffFiles?.length}>
-                                <box marginTop={1}>
-                                  <For each={revert()!.diffFiles}>
-                                    {(file) => (
-                                      <text fg={theme.text}>
-                                        {file.filename}
-                                        <Show when={file.additions > 0}>
-                                          <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                        </Show>
-                                        <Show when={file.deletions > 0}>
-                                          <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                        </Show>
-                                      </text>
-                                    )}
-                                  </For>
-                                </box>
-                              </Show>
+                              <box
+                                paddingTop={1}
+                                paddingBottom={1}
+                                paddingLeft={2}
+                                backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                              >
+                                <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                <text fg={theme.textMuted}>
+                                  <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
+                                  restore
+                                </text>
+                                <Show when={revert()!.diffFiles?.length}>
+                                  <box marginTop={1}>
+                                    <For each={revert()!.diffFiles}>
+                                      {(file) => (
+                                        <text fg={theme.text}>
+                                          {file.filename}
+                                          <Show when={file.additions > 0}>
+                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                          </Show>
+                                          <Show when={file.deletions > 0}>
+                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                          </Show>
+                                        </text>
+                                      )}
+                                    </For>
+                                  </box>
+                                </Show>
+                              </box>
                             </box>
-                          </box>
-                        )
-                      })()}
-                    </Match>
-                    <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                      <></>
-                    </Match>
-                    <Match when={message.role === "user"}>
-                      <UserMessage
-                        index={index()}
-                        onMouseUp={() => {
-                          if (renderer.getSelection()?.getSelectedText()) return
-                          dialog.replace(() => (
-                            <DialogMessage
-                              messageID={message.id}
-                              sessionID={route.sessionID}
-                              setPrompt={(promptInfo) => prompt.set(promptInfo)}
-                            />
-                          ))
-                        }}
-                        message={message as UserMessage}
-                        parts={sync.data.part[message.id] ?? []}
-                        pending={pending()}
-                      />
-                    </Match>
-                    <Match when={message.role === "assistant"}>
-                      <AssistantMessage
-                        last={lastAssistant()?.id === message.id}
-                        message={message as AssistantMessage}
-                        parts={sync.data.part[message.id] ?? []}
-                      />
-                    </Match>
-                  </Switch>
-                )}
-              </For>
-            </scrollbox>
-            <box flexShrink={0}>
-              <Prompt
-                ref={(r) => {
-                  prompt = r
-                  promptRef.set(r)
-                }}
-                disabled={permissions().length > 0}
-                onSubmit={() => {
-                  toBottom()
-                }}
-                sessionID={route.sessionID}
-              />
-            </box>
-            <Show when={!sidebarVisible()}>
-              <Footer />
+                          )
+                        })()}
+                      </Match>
+                      <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                        <></>
+                      </Match>
+                      <Match when={message.role === "user"}>
+                        <UserMessage
+                          index={index()}
+                          onMouseUp={() => {
+                            if (renderer.getSelection()?.getSelectedText()) return
+                            dialog.replace(() => (
+                              <DialogMessage
+                                messageID={message.id}
+                                sessionID={route.sessionID}
+                                setPrompt={(promptInfo) => prompt.set(promptInfo)}
+                              />
+                            ))
+                          }}
+                          message={message as UserMessage}
+                          parts={sync.data.part[message.id] ?? []}
+                          pending={pending()}
+                        />
+                      </Match>
+                      <Match when={message.role === "assistant"}>
+                        <AssistantMessage
+                          last={lastAssistant()?.id === message.id}
+                          message={message as AssistantMessage}
+                          parts={sync.data.part[message.id] ?? []}
+                        />
+                      </Match>
+                    </Switch>
+                  )}
+                </For>
+              </scrollbox>
+              <box flexShrink={0}>
+                <Prompt
+                  ref={(r) => {
+                    prompt = r
+                    promptRef.set(r)
+                  }}
+                  disabled={permissions().length > 0}
+                  onSubmit={() => {
+                    toBottom()
+                  }}
+                  sessionID={route.sessionID}
+                />
+              </box>
+              <Show when={!sidebarVisible()}>
+                <Footer />
+              </Show>
             </Show>
+            <Toast />
+          </box>
+          {/* Secondary pane area - shown when user creates splits via which-key */}
+          <Show when={hasSecondaryPanes()}>
+            <box width={1} backgroundColor={theme.border} flexShrink={0} />
+            <box flexGrow={0.4}>
+              <SecondaryPaneArea sessionID={route.sessionID} />
+            </box>
           </Show>
-          <Toast />
+          <Show when={sidebarVisible()}>
+            <Sidebar sessionID={route.sessionID} />
+          </Show>
         </box>
-        <Show when={sidebarVisible()}>
-          <Sidebar sessionID={route.sessionID} />
-        </Show>
+        <FloatingPaneOverlay sessionID={route.sessionID} />
       </box>
     </context.Provider>
   )

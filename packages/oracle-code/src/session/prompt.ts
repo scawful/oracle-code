@@ -40,6 +40,7 @@ import { FileTime } from "../file/time"
 import { ulid } from "ulid"
 import { spawn } from "child_process"
 import { Command } from "../command"
+import { SlashCommand } from "../command/slash"
 import { $, fileURLToPath } from "bun"
 import { ConfigMarkdown } from "../config/markdown"
 import { SessionSummary } from "./summary"
@@ -680,6 +681,7 @@ export namespace SessionPrompt {
     )
     system.push(...(await SystemPrompt.environment()))
     system.push(...(await SystemPrompt.custom()))
+    system.push(...(await SystemPrompt.cognitive()))
 
     if (input.isLastStep) {
       system.push(MAX_STEPS)
@@ -1366,6 +1368,88 @@ export namespace SessionPrompt {
 
   export async function command(input: CommandInput) {
     log.info("command", input)
+
+    // Check for built-in SlashCommand first
+    const slashResult = await SlashCommand.execute(input.sessionID, `/${input.command} ${input.arguments}`)
+    if (slashResult) {
+      // Get model info for message metadata
+      const model = input.model ? Provider.parseModel(input.model) : await lastModel(input.sessionID)
+
+      // Create a user message with the command
+      const userMessageID = input.messageID ?? Identifier.ascending("message")
+      const userMsg: MessageV2.User = {
+        id: userMessageID,
+        role: "user",
+        sessionID: input.sessionID,
+        time: { created: Date.now() },
+        agent: input.agent ?? "default",
+        model: { providerID: model.providerID, modelID: model.modelID },
+      }
+      await Session.updateMessage(userMsg)
+      await Session.updatePart({
+        id: Identifier.ascending("part"),
+        type: "text",
+        messageID: userMessageID,
+        sessionID: input.sessionID,
+        text: `/${input.command} ${input.arguments}`.trim(),
+      })
+
+      // Create assistant response with the result
+      const assistantMessageID = Identifier.ascending("message")
+      const responseText = slashResult.error || slashResult.output || "Command executed"
+
+      const assistantMsg: MessageV2.Assistant = {
+        id: assistantMessageID,
+        role: "assistant",
+        sessionID: input.sessionID,
+        parentID: userMessageID,
+        mode: input.agent ?? "default",
+        modelID: model.modelID,
+        providerID: model.providerID,
+        path: { cwd: Instance.directory, root: Instance.worktree },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        time: { created: Date.now(), completed: Date.now() },
+      }
+      await Session.updateMessage(assistantMsg)
+
+      // Build parts array directly
+      const parts: MessageV2.Part[] = []
+
+      const mainPart: MessageV2.TextPart = {
+        id: Identifier.ascending("part"),
+        type: "text",
+        messageID: assistantMessageID,
+        sessionID: input.sessionID,
+        text: responseText,
+      }
+      await Session.updatePart(mainPart)
+      parts.push(mainPart)
+
+      // If the slash command returned parts with text, add them for additional context
+      if (slashResult.parts && slashResult.parts.length > 0) {
+        for (const part of slashResult.parts) {
+          if (part.type === "text" && part.text) {
+            const textPart: MessageV2.TextPart = {
+              id: Identifier.ascending("part"),
+              type: "text",
+              messageID: assistantMessageID,
+              sessionID: input.sessionID,
+              text: part.text,
+            }
+            await Session.updatePart(textPart)
+            parts.push(textPart)
+          }
+        }
+      }
+
+      return {
+        info: assistantMsg,
+        parts,
+      }
+    }
+
+    // Fall back to template-based Command
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? "build"
 

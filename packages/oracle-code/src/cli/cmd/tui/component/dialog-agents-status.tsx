@@ -1,20 +1,20 @@
 import { createMemo } from "solid-js"
-import { useSwarm } from "../context/swarm"
+import { useAgents } from "../context/agents"
 import { useSync } from "../context/sync"
 import { useLocal } from "../context/local"
 import { useRoute } from "../context/route"
 import { useDialog } from "../ui/dialog"
 import { DialogSelect } from "../ui/dialog-select"
 
-export function DialogSwarmStatus() {
-  const swarm = useSwarm()
+export function DialogAgentsStatus() {
+  const agents = useAgents()
   const sync = useSync()
   const local = useLocal()
   const route = useRoute()
   const dialog = useDialog()
 
   const options = createMemo(() => {
-    const sessions = swarm.getSubagentSessions()
+    const sessions = agents.getSubagentSessions()
     const statuses = sync.data.session_status || {}
 
     return sessions.map((session) => {
@@ -35,7 +35,7 @@ export function DialogSwarmStatus() {
 
   return (
     <DialogSelect
-      title="Swarm Status"
+      title="Agents Status"
       options={options()}
       onSelect={(option) => {
         // Navigate to the session

@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { Instance } from "@/project/instance"
@@ -5,7 +6,7 @@ import { $ } from "bun"
 
 export const PrCommand = cmd({
   command: "pr <number>",
-  describe: "fetch and checkout a GitHub PR branch, then run codewizard",
+  describe: "fetch and checkout a GitHub PR branch, then run ocode",
   builder: (yargs) =>
     yargs.positional("number", {
       type: "number",
@@ -14,7 +15,7 @@ export const PrCommand = cmd({
     }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const project = Instance.project
         if (project.vcs !== "git") {

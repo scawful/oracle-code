@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import type { Argv } from "yargs"
 import { Session } from "../../session"
 import { cmd } from "./cmd"
@@ -17,7 +18,7 @@ export const ImportCommand = cmd({
     })
   },
   handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       let exportData:
         | {
             info: Session.Info

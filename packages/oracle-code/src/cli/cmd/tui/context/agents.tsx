@@ -1,22 +1,22 @@
 import { createStore } from "solid-js/store"
 import { createSimpleContext } from "./helper"
-import { onMount } from "solid-js"
+import { onMount, onCleanup } from "solid-js"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
 
-export interface SwarmContextData {
+export interface AgentsContextData {
   activeAgents: string[]
   subagentSessionCount: number
   lastUpdated: number
 }
 
-export const { use: useSwarm, provider: SwarmProvider } = createSimpleContext({
-  name: "Swarm",
+export const { use: useAgents, provider: AgentsProvider } = createSimpleContext({
+  name: "Agents",
   init: () => {
     const sdk = useSDK()
     const sync = useSync()
 
-    const [store, setStore] = createStore<SwarmContextData>({
+    const [store, setStore] = createStore<AgentsContextData>({
       activeAgents: [],
       subagentSessionCount: 0,
       lastUpdated: 0,
@@ -50,7 +50,7 @@ export const { use: useSwarm, provider: SwarmProvider } = createSimpleContext({
           lastUpdated: Date.now(),
         })
       } catch (error) {
-        console.error("Failed to refresh swarm state:", error)
+        console.error("Failed to refresh agents state:", error)
       }
     }
 
@@ -58,10 +58,17 @@ export const { use: useSwarm, provider: SwarmProvider } = createSimpleContext({
       refresh()
 
       // Listen for session events
-      sdk.event.on("session.created", refresh)
-      sdk.event.on("session.updated", refresh)
-      sdk.event.on("session.deleted", refresh)
-      sdk.event.on("session.status", refresh)
+      const unsubs = [
+        sdk.event.on("session.created", refresh),
+        sdk.event.on("session.updated", refresh),
+        sdk.event.on("session.deleted", refresh),
+        sdk.event.on("session.status", refresh),
+      ]
+
+      // Cleanup: unsubscribe from all events
+      onCleanup(() => {
+        for (const unsub of unsubs) unsub()
+      })
     })
 
     return {

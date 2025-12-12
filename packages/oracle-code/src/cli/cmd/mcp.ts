@@ -29,7 +29,7 @@ export const McpListCommand = cmd({
   describe: "list MCP servers and their status",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         UI.empty()
         prompts.intro("MCP Servers")
@@ -100,7 +100,7 @@ export const McpAuthCommand = cmd({
     }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         UI.empty()
         prompts.intro("MCP OAuth Authentication")
@@ -217,7 +217,7 @@ export const McpLogoutCommand = cmd({
     }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         UI.empty()
         prompts.intro("MCP OAuth Logout")

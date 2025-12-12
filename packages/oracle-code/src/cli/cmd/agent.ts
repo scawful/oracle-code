@@ -50,7 +50,7 @@ const AgentCreateCommand = cmd({
       }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const cliPath = args.path
         const cliDescription = args.description
@@ -223,7 +223,7 @@ const AgentListCommand = cmd({
   describe: "list all available agents",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         const agents = await Agent.list()
         const sortedAgents = agents.sort((a, b) => {

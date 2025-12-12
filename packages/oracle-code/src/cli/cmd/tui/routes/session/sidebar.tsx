@@ -10,8 +10,10 @@ import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { AFSPanel } from "../../component/panel-afs"
-import { SwarmPanel } from "../../component/panel-swarm"
+import { AgentsPanel } from "../../component/panel-agents"
 import { StatePanel } from "../../component/panel-state"
+import { CognitivePanel } from "../../component/panel-cognitive"
+import { OrchestrationPanel } from "../../component/panel-orchestration"
 
 export function Sidebar(props: { sessionID: string }) {
   const sync = useSync()
@@ -249,7 +251,9 @@ export function Sidebar(props: { sessionID: string }) {
               </box>
             </Show>
             <AFSPanel />
-            <SwarmPanel />
+            <AgentsPanel />
+            <OrchestrationPanel />
+            <CognitivePanel />
             <StatePanel />
           </box>
         </scrollbox>

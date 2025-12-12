@@ -1,102 +1,72 @@
-# Contributing to CodeWizard
+# Contributing
 
-We want to make it easy for you to contribute to CodeWizard. Here are the most common type of changes that get merged:
+Common contributions:
 
 - Bug fixes
-- Additional LSPs / Formatters
-- Improvements to LLM performance
-- Support for new providers
-- Fixes for environment-specific quirks
-- Missing standard behavior
-- Documentation improvements
+- LSP / formatter support
+- LLM performance improvements
+- New provider support
+- Environment-specific fixes
+- Documentation
 
-However, any UI or core product feature must go through a design review with the core team before implementation.
+UI/core features require design review. Check issues labeled [`help wanted`](https://github.com/scawful/oracle-code/issues?q=label%3Ahelp-wanted), [`good first issue`](https://github.com/scawful/oracle-code/issues?q=label%3A%22good%20first%20issue%22), [`bug`](https://github.com/scawful/oracle-code/issues?q=label%3Abug), or [`perf`](https://github.com/scawful/oracle-code/issues?q=label%3Aperf).
 
-If you are unsure if a PR would be accepted, feel free to ask a maintainer or look for issues with any of the following labels:
+## Setup
 
-- [`help wanted`](https://github.com/scawful/oracle-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Ahelp-wanted)
-- [`good first issue`](https://github.com/scawful/oracle-code/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
-- [`bug`](https://github.com/scawful/oracle-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
-- [`perf`](https://github.com/scawful/oracle-code/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22perf%22)
+Requirements: Bun 1.3+
 
-> [!NOTE]
-> PRs that ignore these guardrails will likely be closed.
+```bash
+bun install
+bun dev
+```
 
-Want to take on an issue? Leave a comment and a maintainer may assign it to you unless it is something we are already working on.
+## Structure
 
-## Developing CodeWizard
+- `packages/oracle-code` - Core logic & server
+- `packages/oracle-code/src/cli/cmd/tui/` - TUI (SolidJS + [opentui](https://github.com/sst/opentui))
+- `packages/plugin` - `@oracle-code/plugin`
 
-- Requirements: Bun 1.3+
-- Install dependencies and start the dev server from the repo root:
+After editing `packages/oracle-code/src/server/server.ts`, regenerate SDK:
+```bash
+./packages/sdk/js/script/build.ts
+```
 
-  ```bash
-  bun install
-  bun dev
-  ```
+## Debugging
 
-- Core pieces:
-  - `packages/oracle-code`: Oracle Code core business logic & server.
-  - `packages/oracle-code/src/cli/cmd/tui/`: The TUI code, written in SolidJS with [opentui](https://github.com/sst/opentui)
-  - `packages/plugin`: Source for `@oracle-code/plugin`
+Run with inspector:
+```bash
+bun run --inspect=ws://localhost:6499/ dev
+```
 
-> [!NOTE]
-> After touching `packages/oracle-code/src/server/server.ts`, run "./packages/sdk/js/script/build.ts" to regenerate the JS sdk.
+Or set `export BUN_OPTIONS=--inspect=ws://localhost:6499/`
 
-Please try to follow the [style guide](./STYLE_GUIDE.md)
+**Caveats:**
+- `*.tsx` breakpoints don't map correctly (use `debugger;` statements)
+- For server breakpoints with TUI running, use `bun dev spawn`
 
-### Setting up a Debugger
+VSCode configs: [.vscode/settings.example.json](.vscode/settings.example.json), [.vscode/launch.example.json](.vscode/launch.example.json)
 
-Bun debugging is currently rough around the edges. We hope this guide helps you get set up and avoid some pain points.
+## Pull Requests
 
-The most reliable way to debug Oracle Code is to run it manually in a terminal via `bun run --inspect=<url> dev ...` and attach
-your debugger via that URL. Other methods can result in breakpoints being mapped incorrectly, at least in VSCode (YMMV).
+- Keep PRs small and focused
+- Link relevant issues
+- Explain the fix
+- Skip verbose AI-generated descriptions
+- Check for existing similar functionality before adding new code
 
-Caveats:
+## Style
 
-- `*.tsx` files won't have their breakpoints correctly mapped. This seems due to Bun currently not supporting source maps on code transformed
-  via `BunPlugin`s (currently necessary due to our dependency on `@opentui/solid`). Currently, the best you can do in terms of debugging `*.tsx`
-  files is writing a `debugger;` statement. Debugging facilities like stepping won't work, but at least you will be informed if a specific code
-  is triggered.
-- If you want to run the Oracle Code TUI and have breakpoints triggered in the server code, you might need to run `bun dev spawn` instead of
-  the usual `bun dev`. This is because `bun dev` runs the server in a worker thread and breakpoints might not work there.
+- Single functions unless reuse is clear
+- Avoid unnecessary destructuring
+- Avoid `else` statements
+- Prefer `.catch()` over try/catch
+- Precise types, avoid `any`
+- Prefer `const`, avoid `let`
+- Concise naming
+- Use Bun APIs (`Bun.file()`, etc.)
 
-Other tips and tricks:
-
-- You might want to use `--inspect-wait` or `--inspect-brk` instead of `--inspect`, depending on your workflow
-- Specifying `--inspect=ws://localhost:6499/` on every invocation can be tiresome, you may want to `export BUN_OPTIONS=--inspect=ws://localhost:6499/` instead
-
-#### VSCode Setup
-
-If you use VSCode, you can use our example configurations [.vscode/settings.example.json](.vscode/settings.example.json) and [.vscode/launch.example.json](.vscode/launch.example.json).
-
-Some debug methods that can be problematic:
-
-- Debug configurations with `"request": "launch"` can have breakpoints incorrectly mapped and thus unusable
-- The same problem arises when running Oracle Code in the VSCode `JavaScript Debug Terminal`
-
-With that said, you may want to try these methods, as they might work for you.
-
-## Pull Request Expectations
-
-- Try to keep pull requests small and focused.
-- Link relevant issue(s) in the description
-- Explain the issue and why your change fixes it
-- Avoid having verbose LLM generated PR descriptions
-- Before adding new functions or functionality, ensure that such behavior doesn't already exist elsewhere in the codebase.
-
-### Style Preferences
-
-These are not strictly enforced, they are just general guidelines:
-
-- **Functions:** Keep logic within a single function unless breaking it out adds clear reuse or composition benefits.
-- **Destructuring:** Do not do unnecessary destructuring of variables.
-- **Control flow:** Avoid `else` statements.
-- **Error handling:** Prefer `.catch(...)` instead of `try`/`catch` when possible.
-- **Types:** Reach for precise types and avoid `any`.
-- **Variables:** Stick to immutable patterns and avoid `let`.
-- **Naming:** Choose concise single-word identifiers when they remain descriptive.
-- **Runtime APIs:** Use Bun helpers such as `Bun.file()` when they fit the use case.
+See [STYLE_GUIDE.md](./STYLE_GUIDE.md)
 
 ## Feature Requests
 
-For net-new functionality, start with a design conversation. Open an issue describing the problem, your proposed approach (optional), and why it belongs in CodeWizard. The core team will help decide whether it should move forward; please wait for that approval instead of opening a feature PR directly.
+Open an issue first. Wait for approval before implementing.

@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { EOL } from "os"
 import { Ripgrep } from "../../../file/ripgrep"
 import { Instance } from "../../../project/instance"
@@ -17,7 +18,7 @@ const TreeCommand = cmd({
       type: "number",
     }),
   async handler(args) {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       process.stdout.write((await Ripgrep.tree({ cwd: Instance.directory, limit: args.limit })) + EOL)
     })
   },
@@ -40,7 +41,7 @@ const FilesCommand = cmd({
         description: "Limit number of results",
       }),
   async handler(args) {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const files: string[] = []
       for await (const file of Ripgrep.files({
         cwd: Instance.directory,

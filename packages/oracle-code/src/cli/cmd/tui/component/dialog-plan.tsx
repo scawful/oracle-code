@@ -26,7 +26,7 @@ export function DialogPlan() {
       <Show when={!afs.exists}>
         <box gap={1}>
           <text fg={theme.warning}>AFS not initialized</text>
-          <text fg={theme.textMuted}>Run 'codewizard afs init' to set up the Agentic File System</text>
+          <text fg={theme.textMuted}>Run 'ocode afs init' to set up the Agentic File System</text>
         </box>
       </Show>
 

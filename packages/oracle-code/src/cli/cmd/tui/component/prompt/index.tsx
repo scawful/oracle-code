@@ -25,6 +25,8 @@ import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { useToast } from "../../ui/toast"
+import { useAnalysisMode } from "@tui/context/analysis-mode"
+import { useKeyboardMode } from "@tui/context/keyboard-mode"
 
 export type PromptProps = {
   sessionID?: string
@@ -63,6 +65,8 @@ export function Prompt(props: PromptProps) {
   const command = useCommandDialog()
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
+  const analysisMode = useAnalysisMode()
+  const keyboardMode = useKeyboardMode()
 
   function promptModelWarning() {
     toast.show({
@@ -408,6 +412,8 @@ export function Prompt(props: PromptProps) {
 
   async function submit() {
     if (props.disabled) return
+    if (dialog.stack.length > 0) return
+    if (keyboardMode.isOwned) return
     if (autocomplete.visible) return
     if (!store.prompt.input) return
     const trimmed = store.prompt.input.trim()
@@ -674,7 +680,8 @@ export function Prompt(props: PromptProps) {
               }}
               keyBindings={textareaKeybindings()}
               onKeyDown={async (e) => {
-                if (props.disabled) {
+                // Skip if keyboard is owned by another component (e.g., AFS browser)
+                if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
                   e.preventDefault()
                   return
                 }
@@ -903,6 +910,40 @@ export function Prompt(props: PromptProps) {
             <box gap={2} flexDirection="row">
               <Switch>
                 <Match when={store.mode === "normal"}>
+                  <text
+                    fg={
+                      analysisMode.isActive
+                        ? analysisMode.mode === "eval"
+                          ? theme.warning
+                          : analysisMode.mode === "tom"
+                            ? theme.info
+                            : analysisMode.mode === "critic"
+                              ? theme.error
+                              : theme.success
+                        : theme.text
+                    }
+                    onMouseDown={() => analysisMode.cycle(1)}
+                  >
+                    {keybind.print("analysis_cycle" as any)}{" "}
+                    <span
+                      style={{
+                        fg: analysisMode.isActive
+                          ? analysisMode.mode === "eval"
+                            ? theme.warning
+                            : analysisMode.mode === "tom"
+                              ? theme.info
+                              : analysisMode.mode === "critic"
+                                ? theme.error
+                                : theme.success
+                          : theme.textMuted,
+                      }}
+                    >
+                      {analysisMode.isActive ? analysisMode.modeInfo.shortName : "analysis"}
+                    </span>
+                  </text>
+                  <text fg={theme.text}>
+                    {keybind.print("afs_browser" as any)} <span style={{ fg: theme.textMuted }}>files</span>
+                  </text>
                   <text fg={theme.text}>
                     {keybind.print("agent_cycle")} <span style={{ fg: theme.textMuted }}>switch agent</span>
                   </text>

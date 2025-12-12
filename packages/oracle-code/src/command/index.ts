@@ -6,6 +6,7 @@ import { Instance } from "../project/instance"
 import { Identifier } from "../id/id"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
+import { SlashCommand } from "./slash"
 
 export namespace Command {
   export const Event = {
@@ -75,6 +76,15 @@ export namespace Command {
   }
 
   export async function list() {
-    return state().then((x) => Object.values(x))
+    const configCommands = await state().then((x) => Object.values(x))
+
+    // Also include SlashCommand built-in commands
+    const slashCommands = SlashCommand.list().map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description,
+      template: "", // SlashCommand doesn't use templates - handled directly
+    }))
+
+    return [...configCommands, ...slashCommands]
   }
 }

@@ -1,7 +1,7 @@
-# Gemini Agentic Profile: CodeWizard
+# Gemini Agentic Profile: Oracle Code
 
 ## Core Philosophy: The Swarm
-**CodeWizard** is an evolution of `opencode` driven by Swarm Intelligence and Agentic File Systems.
+**Oracle-Code** is an evolution of `opencode` driven by Swarm Intelligence and Agentic File Systems.
 - **Goal:** Adapt `opencode` to support multi-agent sessions and project-aware context.
 - **Motto:** "We are collaborators."
 
@@ -9,7 +9,7 @@
 **"Everything is Context."**
 - **Root:** `.context/`
 - **Specs:** `.context/memory/AFS_SPEC.md`
-- **Swarm:** `.context/memory/SWARM_SPEC.md`
+- **Swarm:** `.context/memory/AGENTS_SPEC.md`
 
 ## Context Strategy
 1. **Mount:** Bring relevant context into focus.

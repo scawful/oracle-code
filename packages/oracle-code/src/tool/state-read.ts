@@ -15,7 +15,7 @@ export const StateReadTool = Tool.define("state_read", {
     if (!root) {
       return {
         title: "State Not Found",
-        output: "AFS not initialized. No .context directory found.\nRun 'codewizard afs init' to initialize.",
+        output: "AFS not initialized. No .context directory found.\nRun 'ocode afs init' to initialize.",
         metadata: {
           exists: false,
           count: 0,

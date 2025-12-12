@@ -19,6 +19,7 @@ export function DialogPrompt(props: DialogPromptProps) {
   let textarea: TextareaRenderable
 
   useKeyboard((evt) => {
+    if (evt.defaultPrevented) return
     if (evt.name === "return") {
       props.onConfirm?.(textarea.plainText)
     }

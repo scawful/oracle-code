@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import type { Argv } from "yargs"
 import { Session } from "../../session"
 import { cmd } from "./cmd"
@@ -16,7 +17,7 @@ export const ExportCommand = cmd({
     })
   },
   handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       let sessionID = args.sessionID
       process.stderr.write(`Exporting session: ${sessionID ?? "latest"}`)
 

@@ -1,7 +1,9 @@
+import { Global } from "@/global"
 import { cmd } from "./cmd"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { Instance } from "../../project/instance"
+import { AFS } from "../../afs"
 import path from "path"
 import fs from "fs/promises"
 import { EOL } from "os"
@@ -19,9 +21,9 @@ const AfsInitCommand = cmd({
   describe: "initialize agentic file system",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
-        const root = path.join(Instance.worktree, ".context")
+        const root = path.join(Instance.directory, ".context")
         UI.println(`Initializing AFS in ${root}`)
 
         for (const [name, info] of Object.entries(AFS_DIRS)) {
@@ -53,32 +55,26 @@ const AfsStatusCommand = cmd({
   describe: "show AFS status",
   async handler() {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
-        const root = path.join(Instance.worktree, ".context")
-        const exists = await fs
-          .stat(root)
-          .then((s) => s.isDirectory())
-          .catch(() => false)
+        const status = await AFS.getStatus()
 
-        if (!exists) {
-          UI.error(`AFS not initialized at ${root}. Run 'codewizard afs init' first.`)
+        if (!status.exists) {
+          UI.error(`AFS not initialized. Run 'ocode afs init' to create .context directory.`)
           return
         }
 
-        UI.println(`${UI.Style.TEXT_HIGHLIGHT_BOLD}Agentic File System${UI.Style.TEXT_NORMAL} (${root})`)
-        for (const [name, info] of Object.entries(AFS_DIRS)) {
-          const dir = path.join(root, name)
-          const files = await fs.readdir(dir).catch(() => [])
+        UI.println(`${UI.Style.TEXT_HIGHLIGHT_BOLD}Agentic File System${UI.Style.TEXT_NORMAL} (${status.root})`)
+        for (const dir of status.directories) {
           const color =
-            info.policy === "read_only"
+            dir.policy === "read_only"
               ? UI.Style.TEXT_DIM
-              : info.policy === "writable"
+              : dir.policy === "writable"
                 ? UI.Style.TEXT_SUCCESS
                 : UI.Style.TEXT_WARNING
 
           UI.println(
-            `  ${color}${name.padEnd(12)}${UI.Style.TEXT_NORMAL} [${info.policy}] - ${files.length} items`,
+            `  ${color}${dir.name.padEnd(12)}${UI.Style.TEXT_NORMAL} [${dir.policy}] - ${dir.fileCount} items`,
           )
         }
       },

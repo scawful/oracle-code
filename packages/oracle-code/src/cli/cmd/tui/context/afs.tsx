@@ -1,7 +1,8 @@
 import { createStore } from "solid-js/store"
 import { createSimpleContext } from "./helper"
-import { onMount } from "solid-js"
+import { createEffect, onMount } from "solid-js"
 import { AFS } from "@/afs"
+import { useSync } from "./sync"
 
 export interface AFSContextData {
   root: string | null
@@ -15,6 +16,8 @@ export interface AFSContextData {
 export const { use: useAFS, provider: AFSProvider } = createSimpleContext({
   name: "AFS",
   init: () => {
+    const sync = useSync()
+
     const [store, setStore] = createStore<AFSContextData>({
       root: null,
       exists: false,
@@ -26,7 +29,9 @@ export const { use: useAFS, provider: AFSProvider } = createSimpleContext({
 
     async function refresh() {
       try {
-        const status = await AFS.getStatus()
+        // Use the directory from sync context if available, otherwise fall back to default
+        const startDir = sync.data.path.directory || sync.data.path.worktree || undefined
+        const status = await AFS.getStatus(startDir ? await AFS.findRoot(startDir) ?? undefined : undefined)
         const plan = status.exists ? await AFS.readPlan(status.root) : null
 
         setStore({
@@ -52,6 +57,13 @@ export const { use: useAFS, provider: AFSProvider } = createSimpleContext({
 
     onMount(() => {
       refresh()
+    })
+
+    // Re-refresh when path becomes available from sync
+    createEffect(() => {
+      if (sync.data.path.directory || sync.data.path.worktree) {
+        refresh()
+      }
     })
 
     return {

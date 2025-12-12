@@ -224,7 +224,7 @@ export const AuthLoginCommand = cmd({
     }),
   async handler(args) {
     await Instance.provide({
-      directory: process.cwd(),
+      directory: Global.cwd(),
       async fn() {
         UI.empty()
         prompts.intro("Add credential")

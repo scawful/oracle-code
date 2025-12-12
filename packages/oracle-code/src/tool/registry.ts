@@ -127,7 +127,7 @@ export namespace ToolRegistry {
         .filter((t) => {
           // Enable websearch/codesearch for zen users OR via enable flag
           if (t.id === "codesearch" || t.id === "websearch") {
-            return providerID === "opencode" || Flag.CODEWIZARD_ENABLE_EXA
+            return providerID === "opencode" || Flag.OCODE_ENABLE_EXA
           }
           return true
         })

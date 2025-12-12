@@ -1,3 +1,4 @@
+import { Global } from "@/global"
 import { EOL } from "os"
 import { Config } from "../../../config/config"
 import { bootstrap } from "../../bootstrap"
@@ -7,7 +8,7 @@ export const ConfigCommand = cmd({
   command: "config",
   builder: (yargs) => yargs,
   async handler() {
-    await bootstrap(process.cwd(), async () => {
+    await bootstrap(Global.cwd(), async () => {
       const config = await Config.get()
       process.stdout.write(JSON.stringify(config, null, 2) + EOL)
     })

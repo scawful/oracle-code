@@ -2,7 +2,7 @@ import { Global } from "../global"
 import { Log } from "../util/log"
 import path from "path"
 import z from "zod"
-import { data } from "./models-macro" with { type: "macro" }
+import { data } from "./models-macro"
 import { Installation } from "../installation"
 
 export namespace ModelsDev {
@@ -74,10 +74,14 @@ export namespace ModelsDev {
   export type Provider = z.infer<typeof Provider>
 
   export async function get() {
-    refresh()
     const file = Bun.file(filepath)
-    const result = await file.json().catch(() => {})
+    const result = await file.json().catch(() => undefined)
     if (result) return result as Record<string, Provider>
+
+    await refresh()
+    const refreshed = await file.json().catch(() => undefined)
+    if (refreshed) return refreshed as Record<string, Provider>
+
     const json = await data()
     return JSON.parse(json) as Record<string, Provider>
   }
