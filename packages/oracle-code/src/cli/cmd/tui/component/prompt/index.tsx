@@ -694,6 +694,13 @@ export function Prompt(props: PromptProps) {
               }}
               keyBindings={textareaKeybindings()}
               onKeyDown={async (e) => {
+                // ALWAYS allow command palette keybind, even when keyboard is owned
+                // This ensures Ctrl+P works from anywhere
+                if (keybind.match("command_list", e)) {
+                  command.show()
+                  e.preventDefault()
+                  return
+                }
                 // Skip if keyboard is owned by another component (e.g., AFS browser)
                 if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
                   // Don't consume keys while another component owns the keyboard
@@ -701,12 +708,6 @@ export function Prompt(props: PromptProps) {
                   try {
                     input.blur()
                   } catch {}
-                  return
-                }
-                // Let command palette keybind through to global handlers
-                if (keybind.match("command_list", e)) {
-                  command.show()
-                  e.preventDefault()
                   return
                 }
                 if (keybind.match("input_clear", e)) {
