@@ -1,0 +1,108 @@
+Manage hivemind entries - the cross-session learning system.
+
+The hivemind stores learnings that persist across sessions:
+- **fears**: Known pitfalls and things to avoid
+- **satisfactions**: Approaches that work well
+- **knowledge**: Established facts and information
+- **decisions**: Past architectural and design decisions
+- **preferences**: User and project preferences
+
+## Actions
+
+### create
+Create a new entry. Fails if key already exists.
+```
+hivemind_manage({
+  action: "create",
+  key: "my_learning",
+  value: "What I learned...",
+  category: "knowledge",
+  scope: "project",       // or "global"
+  tags: ["tag1", "tag2"],
+  reason: "Why this matters",
+  requestGolden: false    // true = permanent, won't decay
+})
+```
+
+### read
+Query entries with various filters.
+```
+hivemind_manage({ action: "read" })                           // All entries
+hivemind_manage({ action: "read", key: "specific_key" })      // By key
+hivemind_manage({ action: "read", category: "fear" })         // By category
+hivemind_manage({ action: "read", status: "golden" })         // By status
+hivemind_manage({ action: "read", search: "query" })          // Search
+hivemind_manage({ action: "read", scope: "global" })          // Global only
+```
+
+### update
+Modify an existing entry.
+```
+hivemind_manage({
+  action: "update",
+  key: "existing_key",
+  value: "Updated value",
+  confidence: 0.9,
+  tags: ["new", "tags"],
+  requestGolden: true     // Promote to permanent
+})
+```
+
+### delete
+Remove entries by key.
+```
+hivemind_manage({ action: "delete", key: "old_entry" })
+hivemind_manage({ action: "delete", keys: ["entry1", "entry2"] })
+```
+
+### merge
+Combine duplicate entries into one.
+```
+hivemind_manage({
+  action: "merge",
+  keys: ["user_profile", "user_identity"],
+  targetKey: "user_info",
+  mergedValue: "Combined user information...",
+  category: "knowledge",
+  reason: "Consolidating duplicates"
+})
+```
+
+### find_duplicates
+Find potential duplicate entries based on key similarity or tag overlap.
+```
+hivemind_manage({ action: "find_duplicates" })
+hivemind_manage({ action: "find_duplicates", threshold: 0.8 })  // Higher = stricter
+```
+
+### set_filter
+Configure which global entries are included for this project.
+```
+hivemind_manage({
+  action: "set_filter",
+  filter: {
+    includeTags: ["personal", "identity"],  // Only include these
+    excludeTags: ["code-specific"],          // Exclude these
+    includeCategories: ["knowledge", "preference"],
+    excludeCategories: ["fear"],
+    includeKeys: ["user_"],                  // Key patterns to include
+    excludeKeys: ["temp_"]                   // Key patterns to exclude
+  }
+})
+```
+
+## Scopes
+- **project**: Entries stored in `.context/hivemind/` (default)
+- **global**: Entries stored in `~/.context/hivemind/` (shared across projects)
+
+## Status
+- **active**: Normal entry, will decay over time if not accessed
+- **golden**: Permanent entry, will not decay
+- **decaying**: Entry is nearing expiration
+- **contested**: Entry has conflicting values
+
+## Tips
+- Use `find_duplicates` before promoting new entries
+- Use `set_filter` to control what global entries appear in your project
+- Golden entries are permanent - use sparingly for truly important learnings
+- Tags help with filtering and finding related entries

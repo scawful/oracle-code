@@ -31,16 +31,19 @@ export type SplitDirection = "horizontal" | "vertical"
  * View types that can be displayed in a pane
  */
 export type PaneViewType =
+  | "home" // Fresh homepage with prompt (new session start)
   | "chat" // Main agent session chat
   | "afs" // AFS Browser (context explorer)
   | "tom" // Theory of Mind panel
   | "metrics" // Metrics panel
   | "agents" // Agent overview
   | "outcomes" // Tracked outcomes / heuristic issues
-  | "diff" // Diff view
   | "todo" // Todo list
-  | "sidebar" // Traditional sidebar view
-  | "orchestrator" // Orchestrator agent with subagent management
+  | "messages" // Messages buffer (*Messages* like Emacs)
+  | "cognitive" // Cognitive state dashboard
+  | "hivemind" // Hivemind cross-session learning
+  | "state" // Shared state editor
+  | "plan" // Plan.md editor
 
 /**
  * A single tab within a pane
@@ -99,12 +102,14 @@ function migratePaneToTabs(pane: PaneLeaf): PaneLeaf {
   return {
     type: "leaf",
     id: raw.id,
-    tabs: [{
-      id: raw.id + "-tab-0",
-      viewType: raw.viewType || "chat",
-      sessionID: raw.sessionID,
-      metadata: raw.metadata,
-    }],
+    tabs: [
+      {
+        id: raw.id + "-tab-0",
+        viewType: raw.viewType || "chat",
+        sessionID: raw.sessionID,
+        metadata: raw.metadata,
+      },
+    ],
     activeTabIndex: 0,
   }
 }
@@ -149,8 +154,34 @@ export interface Workspace {
   description?: string
   root: PaneNode
   floating: FloatingPane[]
+  leftSidebar: SidebarConfig
+  rightSidebar: SidebarConfig
+  history: string[]
+  maximized: string | null
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * Sidebar view types (subset of PaneViewType appropriate for sidebars)
+ */
+export type SidebarViewType =
+  | "summary" // Default: session summary with compact panels
+  | "cognitive"
+  | "agents"
+  | "afs"
+  | "state"
+  | "hivemind"
+  | "metrics"
+  | "tom"
+
+/**
+ * Configuration for a sidebar
+ */
+export interface SidebarConfig {
+  visible: boolean
+  width: number // chars, 30-60 range
+  viewType: SidebarViewType
 }
 
 /**
@@ -165,6 +196,9 @@ interface PanesState {
   nextZIndex: number // For stacking order
   workspaces: Workspace[] // Named workspace configurations
   currentWorkspace: string | null // Name of the currently loaded workspace
+  // Sidebar state (separate from pane tree)
+  leftSidebar: SidebarConfig
+  rightSidebar: SidebarConfig
 }
 
 /**
@@ -268,10 +302,7 @@ function replacePaneInTree(root: PaneNode, targetId: string, replacement: PaneNo
 /**
  * Collect all leaf panes with their calculated bounds
  */
-function collectLeavesWithBounds(
-  node: PaneNode,
-  bounds: PaneBounds = { x: 0, y: 0, w: 1, h: 1 },
-): LeafWithBounds[] {
+function collectLeavesWithBounds(node: PaneNode, bounds: PaneBounds = { x: 0, y: 0, w: 1, h: 1 }): LeafWithBounds[] {
   if (node.type === "leaf") {
     return [{ pane: node, bounds }]
   }
@@ -375,9 +406,15 @@ function balanceRatios(node: PaneNode): PaneNode {
  * Serializable layout format for persistence
  */
 interface SerializedLayout {
-  version: 1
+  version: 1 | 2
   root: PaneNode
   activeId: string
+  // Added in v2
+  floating?: FloatingPane[]
+  history?: string[]
+  maximized?: string | null
+  leftSidebar?: SidebarConfig
+  rightSidebar?: SidebarConfig
 }
 
 /**
@@ -385,9 +422,14 @@ interface SerializedLayout {
  */
 function serializeLayout(state: PanesState): SerializedLayout {
   return {
-    version: 1,
+    version: 2,
     root: state.root,
     activeId: state.activeId,
+    floating: state.floating,
+    history: state.history,
+    maximized: state.maximized,
+    leftSidebar: state.leftSidebar,
+    rightSidebar: state.rightSidebar,
   }
 }
 
@@ -407,7 +449,7 @@ function generateId(): string {
 function isValidLayout(layout: unknown): layout is SerializedLayout {
   if (!layout || typeof layout !== "object") return false
   const l = layout as any
-  if (l.version !== 1) return false
+  if (l.version !== 1 && l.version !== 2) return false
   if (!l.root || typeof l.root !== "object") return false
   if (typeof l.activeId !== "string") return false
   return true
@@ -450,10 +492,12 @@ function createPaneLeaf(id: string, viewType: PaneViewType = "chat"): PaneLeaf {
   return {
     type: "leaf",
     id,
-    tabs: [{
-      id: id + "-tab-0",
-      viewType,
-    }],
+    tabs: [
+      {
+        id: id + "-tab-0",
+        viewType,
+      },
+    ],
     activeTabIndex: 0,
   }
 }
@@ -472,6 +516,17 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       nextZIndex: 100,
       workspaces: [],
       currentWorkspace: null,
+      // Sidebar defaults
+      leftSidebar: {
+        visible: false,
+        width: 40,
+        viewType: "afs",
+      },
+      rightSidebar: {
+        visible: true, // Right sidebar visible by default (matches current behavior)
+        width: 42,
+        viewType: "summary",
+      },
     })
 
     // Load workspaces from storage on init
@@ -525,10 +580,18 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       const layout = await loadLayoutFromStorage(sessionID)
 
       if (layout) {
-        // Migrate any legacy panes to tabs structure
+        // Migrate any legacy panes to tabs structure and ensure main pane is chat
         const migrateNode = (node: PaneNode): PaneNode => {
           if (node.type === "leaf") {
-            return migratePaneToTabs(node)
+            const migrated = migratePaneToTabs(node)
+            // Ensure the main pane's active tab is always chat view
+            if (migrated.id === "main" && migrated.tabs && migrated.tabs.length > 0) {
+              const activeTab = migrated.tabs[migrated.activeTabIndex]
+              if (activeTab && activeTab.viewType !== "chat" && activeTab.viewType !== "home") {
+                activeTab.viewType = "chat"
+              }
+            }
+            return migrated
           }
           return {
             ...node,
@@ -536,11 +599,16 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
             second: migrateNode(node.second),
           }
         }
-        setStore("root", migrateNode(layout.root))
+        const migratedRoot = migrateNode(layout.root)
+        setStore("root", migratedRoot)
         setStore("activeId", layout.activeId)
-        // Rebuild history from loaded layout
-        const leaves = collectLeavesWithBounds(layout.root).map(l => l.pane.id)
-        setStore("history", leaves)
+        // Rebuild history from loaded layout or use saved history
+        const leaves = collectLeavesWithBounds(migratedRoot).map((l) => l.pane.id)
+        setStore("history", layout.history && layout.history.length > 0 ? layout.history : leaves)
+        setStore("floating", layout.floating ?? [])
+        setStore("maximized", layout.maximized ?? null)
+        setStore("leftSidebar", layout.leftSidebar ?? store.leftSidebar)
+        setStore("rightSidebar", layout.rightSidebar ?? store.rightSidebar)
       } else {
         // Reset to default single pane if no saved layout
         setStore("root", createPaneLeaf("main", "chat"))
@@ -584,22 +652,23 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
 
       // Default UX: splitting the main chat creates a useful side-pane (AFS),
       // otherwise we duplicate the current view unless an explicit viewType is provided.
-      const nextViewType = viewType ??
-        (migratedActivePane.id === "main" && activeTab.viewType === "chat"
-          ? "afs"
-          : activeTab.viewType)
+      const nextViewType =
+        viewType ?? (migratedActivePane.id === "main" && activeTab.viewType === "chat" ? "afs" : activeTab.viewType)
 
       const newPaneId = generateId()
       const newTabId = newPaneId + "-tab-0"
       const newPane: PaneLeaf = {
         type: "leaf",
         id: newPaneId,
-        tabs: [{
-          id: newTabId,
-          viewType: nextViewType,
-          sessionID: nextViewType === activeTab.viewType ? activeTab.sessionID ?? currentSessionID ?? undefined : undefined,
-          metadata: nextViewType === activeTab.viewType ? activeTab.metadata : undefined,
-        }],
+        tabs: [
+          {
+            id: newTabId,
+            viewType: nextViewType,
+            sessionID:
+              nextViewType === activeTab.viewType ? (activeTab.sessionID ?? currentSessionID ?? undefined) : undefined,
+            metadata: nextViewType === activeTab.viewType ? activeTab.metadata : undefined,
+          },
+        ],
         activeTabIndex: 0,
       }
 
@@ -636,8 +705,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
 
       const sibling = getSibling(parent, id)
 
-      const nextRoot =
-        root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
+      const nextRoot = root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
       setStore("root", nextRoot)
 
       // Update active to sibling (or its first leaf)
@@ -648,10 +716,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       }
 
       // Remove from history
-      setStore(
-        "history",
-        [...store.history.filter((h) => h !== id && h !== newActive.id), newActive.id],
-      )
+      setStore("history", [...store.history.filter((h) => h !== id && h !== newActive.id), newActive.id])
       debouncedSave()
     }
 
@@ -693,12 +758,14 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
           if (target && target.type === "leaf") {
             // Migrate to tabs if needed
             if (!target.tabs || target.tabs.length === 0) {
-              target.tabs = [{
-                id: target.id + "-tab-0",
-                viewType: target.viewType || "chat",
-                sessionID: target.sessionID,
-                metadata: target.metadata,
-              }]
+              target.tabs = [
+                {
+                  id: target.id + "-tab-0",
+                  viewType: target.viewType || "chat",
+                  sessionID: target.sessionID,
+                  metadata: target.metadata,
+                },
+              ]
               target.activeTabIndex = 0
             }
             // Update the active tab
@@ -730,12 +797,14 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
           if (target && target.type === "leaf") {
             // Migrate to tabs if needed
             if (!target.tabs || target.tabs.length === 0) {
-              target.tabs = [{
-                id: target.id + "-tab-0",
-                viewType: target.viewType || "chat",
-                sessionID: target.sessionID,
-                metadata: target.metadata,
-              }]
+              target.tabs = [
+                {
+                  id: target.id + "-tab-0",
+                  viewType: target.viewType || "chat",
+                  sessionID: target.sessionID,
+                  metadata: target.metadata,
+                },
+              ]
               target.activeTabIndex = 0
             }
             // Add new tab
@@ -829,6 +898,43 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
     }
 
     /**
+     * Transform the active tab to show a session (used by HomeView)
+     * This changes a "home" tab into a "chat" tab with the given sessionID
+     */
+    function setTabSession(paneId: string, sessionID: string) {
+      const pane = findPane(store.root, paneId)
+      if (!pane || pane.type !== "leaf") return
+
+      setStore(
+        "root",
+        produce((root) => {
+          const target = findPane(root, paneId) as PaneLeaf | null
+          if (target && target.type === "leaf") {
+            // Migrate to tabs if needed
+            if (!target.tabs || target.tabs.length === 0) {
+              target.tabs = [
+                {
+                  id: target.id + "-tab-0",
+                  viewType: target.viewType || "chat",
+                  sessionID: target.sessionID,
+                  metadata: target.metadata,
+                },
+              ]
+              target.activeTabIndex = 0
+            }
+            // Update the active tab to be a session
+            const activeTab = target.tabs[target.activeTabIndex]
+            if (activeTab) {
+              activeTab.viewType = "chat"
+              activeTab.sessionID = sessionID
+            }
+          }
+        }),
+      )
+      debouncedSave()
+    }
+
+    /**
      * Move the active tab left or right
      */
     function moveTab(direction: 1 | -1) {
@@ -884,8 +990,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         zIndex: store.nextZIndex,
       }
 
-      const nextRoot =
-        root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
+      const nextRoot = root.id === parent.id ? sibling : replacePaneInTree(root, parent.id, sibling)
       setStore("root", nextRoot)
       if (store.maximized && !findPane(nextRoot, store.maximized)) {
         setStore("maximized", null)
@@ -897,10 +1002,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       setStore("activeId", pane.id)
 
       // Update history
-      setStore(
-        "history",
-        store.history.filter((h) => h !== pane.id).concat([pane.id]),
-      )
+      setStore("history", store.history.filter((h) => h !== pane.id).concat([pane.id]))
 
       debouncedSave()
     }
@@ -922,7 +1024,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       const targetId =
         activeInTree?.type === "leaf"
           ? store.activeId
-          : store.history.findLast((hid) => findPane(root, hid)?.type === "leaf") ?? "main"
+          : (store.history.findLast((hid) => findPane(root, hid)?.type === "leaf") ?? "main")
 
       const targetPane = findPane(root, targetId)
       if (!targetPane || targetPane.type !== "leaf") return
@@ -1067,6 +1169,10 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         description,
         root: JSON.parse(JSON.stringify(store.root)), // Deep clone
         floating: JSON.parse(JSON.stringify(store.floating)),
+        leftSidebar: JSON.parse(JSON.stringify(store.leftSidebar)),
+        rightSidebar: JSON.parse(JSON.stringify(store.rightSidebar)),
+        history: [...store.history],
+        maximized: store.maximized,
         createdAt: existingIndex >= 0 ? store.workspaces[existingIndex].createdAt : now,
         updatedAt: now,
       }
@@ -1111,20 +1217,26 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         }
       }
 
-      setStore("root", migrateNode(workspace.root))
-      setStore("floating", workspace.floating.map((f) => ({
-        ...f,
-        pane: migratePaneToTabs(f.pane),
-      })))
+      const migratedRoot = migrateNode(workspace.root)
+      setStore("root", migratedRoot)
+      setStore(
+        "floating",
+        workspace.floating.map((f) => ({
+          ...f,
+          pane: migratePaneToTabs(f.pane),
+        })),
+      )
+      // Restore sidebars if present
+      setStore("leftSidebar", workspace.leftSidebar ?? store.leftSidebar)
+      setStore("rightSidebar", workspace.rightSidebar ?? store.rightSidebar)
 
-      // Reset to first leaf pane
-      const leaves = collectLeavesWithBounds(store.root)
-      if (leaves.length > 0) {
-        setStore("activeId", leaves[0].pane.id)
-        setStore("history", leaves.map((l) => l.pane.id))
-      }
+      // Reset to first leaf pane and restore history if available
+      const leaves = collectLeavesWithBounds(migratedRoot)
+      const history = workspace.history && workspace.history.length > 0 ? workspace.history : leaves.map((l) => l.pane.id)
+      setStore("history", history)
+      setStore("activeId", history[history.length - 1] ?? leaves[0]?.pane.id ?? "main")
 
-      setStore("maximized", null)
+      setStore("maximized", workspace.maximized ?? null)
       setStore("currentWorkspace", name)
       debouncedSave()
       log.info("loaded workspace", { name })
@@ -1279,8 +1391,8 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       if (!parent) return
 
       // Determine if we need to invert the delta based on position
-      const isFirstChild = parent.first.id === store.activeId ||
-        (parent.first.type === "split" && findPane(parent.first, store.activeId))
+      const isFirstChild =
+        parent.first.id === store.activeId || (parent.first.type === "split" && findPane(parent.first, store.activeId))
 
       const adjustedRatio = isFirstChild
         ? Math.max(0.1, Math.min(0.9, parent.ratio + delta))
@@ -1310,6 +1422,58 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
      */
     function shrink() {
       resize(-0.05)
+    }
+
+    // =============================================
+    // Sidebar Management
+    // =============================================
+
+    /**
+     * Toggle sidebar visibility
+     */
+    function toggleSidebar(side: "left" | "right") {
+      const key = side === "left" ? "leftSidebar" : "rightSidebar"
+      setStore(key, "visible", !store[key].visible)
+      debouncedSave()
+    }
+
+    /**
+     * Set sidebar visibility explicitly
+     */
+    function setSidebarVisible(side: "left" | "right", visible: boolean) {
+      const key = side === "left" ? "leftSidebar" : "rightSidebar"
+      setStore(key, "visible", visible)
+      debouncedSave()
+    }
+
+    /**
+     * Set sidebar view type
+     */
+    function setSidebarView(side: "left" | "right", viewType: SidebarViewType) {
+      const key = side === "left" ? "leftSidebar" : "rightSidebar"
+      setStore(key, "viewType", viewType)
+      debouncedSave()
+    }
+
+    /**
+     * Resize sidebar width
+     */
+    function resizeSidebar(side: "left" | "right", delta: number) {
+      const key = side === "left" ? "leftSidebar" : "rightSidebar"
+      const currentWidth = store[key].width
+      const newWidth = Math.max(30, Math.min(60, currentWidth + delta))
+      setStore(key, "width", newWidth)
+      debouncedSave()
+    }
+
+    /**
+     * Set sidebar width explicitly
+     */
+    function setSidebarWidth(side: "left" | "right", width: number) {
+      const key = side === "left" ? "leftSidebar" : "rightSidebar"
+      const clampedWidth = Math.max(30, Math.min(60, width))
+      setStore(key, "width", clampedWidth)
+      debouncedSave()
     }
 
     /**
@@ -1440,6 +1604,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       registerWhichKeyAction("window.only", () => only())
 
       // Pane history navigation
+      registerWhichKeyAction("window.other", () => cycleHistory(1))
       registerWhichKeyAction("window.cycle", () => cycleHistory(1))
       registerWhichKeyAction("window.cycle.reverse", () => cycleHistory(-1))
       registerWhichKeyAction("window.previous", () => previousPane())
@@ -1455,18 +1620,24 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       registerWhichKeyAction("window.preset.quad", () => applyPreset("quad"))
 
       // Buffer actions - these set the view type of the active pane
+      registerWhichKeyAction("buffer.home", () => setView(store.activeId, "home"))
       registerWhichKeyAction("buffer.chat", () => setView(store.activeId, "chat"))
       registerWhichKeyAction("buffer.afs", () => setView(store.activeId, "afs"))
       registerWhichKeyAction("buffer.tom", () => setView(store.activeId, "tom"))
       registerWhichKeyAction("buffer.metrics", () => setView(store.activeId, "metrics"))
       registerWhichKeyAction("buffer.agents", () => setView(store.activeId, "agents"))
       registerWhichKeyAction("buffer.outcomes", () => setView(store.activeId, "outcomes"))
-      registerWhichKeyAction("buffer.diff", () => setView(store.activeId, "diff"))
       registerWhichKeyAction("buffer.todo", () => setView(store.activeId, "todo"))
-      registerWhichKeyAction("buffer.sidebar", () => setView(store.activeId, "sidebar"))
+      registerWhichKeyAction("buffer.messages", () => setView(store.activeId, "messages"))
+      registerWhichKeyAction("buffer.cognitive", () => setView(store.activeId, "cognitive"))
+      registerWhichKeyAction("buffer.hivemind", () => setView(store.activeId, "hivemind"))
+      registerWhichKeyAction("buffer.state", () => setView(store.activeId, "state"))
+      registerWhichKeyAction("buffer.plan", () => setView(store.activeId, "plan"))
+      registerWhichKeyAction("buffer.kill", () => closeTab())
 
       // Tab actions
       registerWhichKeyAction("tab.new", () => addTab("chat"))
+      registerWhichKeyAction("tab.new.home", () => addTab("home"))
       registerWhichKeyAction("tab.new.afs", () => addTab("afs"))
       registerWhichKeyAction("tab.new.tom", () => addTab("tom"))
       registerWhichKeyAction("tab.new.metrics", () => addTab("metrics"))
@@ -1504,6 +1675,14 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
         const workspaces = listWorkspaces()
         if (workspaces[3]) loadWorkspace(workspaces[3])
       })
+
+      // Sidebar actions
+      registerWhichKeyAction("sidebar.toggle.right", () => toggleSidebar("right"))
+      registerWhichKeyAction("sidebar.toggle.left", () => toggleSidebar("left"))
+      registerWhichKeyAction("sidebar.grow.right", () => resizeSidebar("right", 2))
+      registerWhichKeyAction("sidebar.shrink.right", () => resizeSidebar("right", -2))
+      registerWhichKeyAction("sidebar.grow.left", () => resizeSidebar("left", 2))
+      registerWhichKeyAction("sidebar.shrink.left", () => resizeSidebar("left", -2))
 
       // Note: Workspace save/load/delete/rename/list are handled via keybinds in app.tsx
       // since they need dialog context access
@@ -1580,6 +1759,7 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       cycleTab,
       goToTab,
       moveTab,
+      setTabSession,
 
       // Floating panes
       get floating() {
@@ -1616,6 +1796,21 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
       findPane: (id: string) => findPane(store.root, id),
       collectLeaves: () => collectLeavesWithBounds(store.root),
       getActiveTab: (pane: PaneLeaf) => getActiveTab(pane),
+
+      // Sidebar state
+      get leftSidebar() {
+        return store.leftSidebar
+      },
+      get rightSidebar() {
+        return store.rightSidebar
+      },
+
+      // Sidebar actions
+      toggleSidebar,
+      setSidebarVisible,
+      setSidebarView,
+      resizeSidebar,
+      setSidebarWidth,
     }
   },
 })
