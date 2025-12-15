@@ -7,6 +7,7 @@ import { UI } from "@/cli/ui"
 import { iife } from "@/util/iife"
 import { Log } from "@/util/log"
 import { Global } from "@/global"
+import { InstanceLock } from "@/instance-lock"
 
 declare global {
   const OCODE_WORKER_PATH: string
@@ -70,6 +71,19 @@ export const TuiThreadCommand = cmd({
       process.chdir(cwd)
     } catch (e) {
       UI.error("Failed to change directory to " + cwd)
+      return
+    }
+
+    // Check for existing instance lock
+    const existingLock = InstanceLock.check(cwd)
+    if (existingLock) {
+      console.error(InstanceLock.formatLockError(existingLock))
+      process.exit(1)
+    }
+
+    // Acquire instance lock
+    if (!InstanceLock.acquire(cwd)) {
+      UI.error("Failed to acquire instance lock")
       return
     }
 
