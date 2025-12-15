@@ -1,8 +1,9 @@
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
-import { createMemo, onMount, onCleanup } from "solid-js"
+import { createMemo, createEffect, onMount, onCleanup } from "solid-js"
 import { useSDK } from "./sdk"
 import { useKV } from "./kv"
+import { useSync } from "./sync"
 import { AFS } from "@/afs"
 import { CognitiveIntegration, AnalysisTriggers, Emotions } from "@/cognitive"
 
@@ -53,16 +54,14 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
   init: () => {
     const sdk = useSDK()
     const kv = useKV()
+    const sync = useSync()
 
     const rawMode = kv.get("analysis.gate.mode", "confirm-all")
     const mode: GateMode =
-      rawMode === "auto-accept" || rawMode === "auto-deny" || rawMode === "confirm-all"
-        ? rawMode
-        : "confirm-all"
+      rawMode === "auto-accept" || rawMode === "auto-deny" || rawMode === "confirm-all" ? rawMode : "confirm-all"
 
     const rawExpiration = Number(kv.get("analysis.gate.expiration_seconds", 300))
-    const expirationSeconds =
-      Number.isFinite(rawExpiration) && rawExpiration > 0 ? Math.floor(rawExpiration) : 300
+    const expirationSeconds = Number.isFinite(rawExpiration) && rawExpiration > 0 ? Math.floor(rawExpiration) : 300
 
     const showNotifications = Boolean(kv.get("analysis.gate.show_notifications", true))
 
@@ -86,7 +85,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
      */
     async function refresh() {
       const pendingFromIntegration = CognitiveIntegration.getPendingTriggers()
-      
+
       // Convert to our format
       const newPending: PendingAnalysis[] = pendingFromIntegration.map((t) => ({
         id: t.trigger.id + "-" + t.timestamp,
@@ -135,11 +134,11 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
 
           // Clean up old non-pending items
           draft.pending = draft.pending.filter(
-            (p) => p.state === "pending" || now - new Date(p.timestamp).getTime() < 60000
+            (p) => p.state === "pending" || now - new Date(p.timestamp).getTime() < 60000,
           )
 
           draft.lastUpdated = now
-        })
+        }),
       )
 
       // Clear from integration
@@ -149,10 +148,65 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
     }
 
     /**
+     * Find the current active session to use as parent for subagents
+     */
+    function findParentSession(): string | null {
+      const sessions = sync.data.session || []
+      const statuses = sync.data.session_status || {}
+
+      // Prefer a busy session (one actively being worked on)
+      const busySession = sessions.find((s) => !s.parentID && statuses[s.id]?.type === "busy")
+      if (busySession) return busySession.id
+
+      // Otherwise use the most recent non-subagent session
+      const mainSessions = sessions.filter((s) => !s.parentID)
+      return mainSessions[0]?.id || null
+    }
+
+    /**
+     * Spawn a subagent session with the given parameters
+     */
+    async function spawnSubagent(agentType: string, prompt: string, description: string): Promise<string | null> {
+      const parentID = findParentSession()
+      if (!parentID) {
+        console.warn("No parent session found to spawn subagent")
+        return null
+      }
+
+      try {
+        // Create the subagent session
+        const createResult = await sdk.client.session.create({
+          parentID,
+          title: `${description} (@${agentType} subagent)`,
+        })
+
+        if (!createResult.data?.id) {
+          console.error("Failed to create subagent session")
+          return null
+        }
+
+        const sessionID = createResult.data.id
+
+        // Send the prompt to the subagent
+        await sdk.client.session.promptAsync({
+          sessionID,
+          agent: agentType,
+          parts: [{ type: "text", text: prompt }],
+        })
+
+        return sessionID
+      } catch (error) {
+        console.error("Failed to spawn subagent:", error)
+        return null
+      }
+    }
+
+    /**
      * Execute an analysis (spawn subagent if needed)
      */
     async function executeAnalysis(analysis: PendingAnalysis) {
-      const root = await AFS.findRoot()
+      const startDir = sync.data.path.directory || sync.data.path.worktree || undefined
+      const root = await AFS.findRoot(startDir)
       if (!root) return
 
       // Record emotion if specified
@@ -163,15 +217,22 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
           e.category,
           e.trigger,
           `Analysis trigger: ${analysis.trigger.name}`,
-          e.intensity
+          e.intensity,
         )
       }
 
-      // TODO: Spawn subagent if subagentType is specified
-      // This would need to integrate with the session/task system
+      // Spawn subagent if subagentType is specified
       if (analysis.trigger.suggestion.subagentType) {
-        console.log("Would spawn subagent:", analysis.trigger.suggestion.subagentType)
-        // Integration with Task tool would go here
+        const agentType = analysis.trigger.suggestion.subagentType
+        const prompt =
+          analysis.trigger.suggestion.prompt ||
+          `Triggered by: ${analysis.trigger.name}\n\nConditions: ${analysis.matchedConditions.join(", ")}`
+        const description = analysis.trigger.name
+
+        const sessionID = await spawnSubagent(agentType, prompt, description)
+        if (sessionID) {
+          console.log("Spawned subagent:", agentType, "session:", sessionID)
+        }
       }
     }
 
@@ -189,7 +250,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
             p.state = "accepted"
             draft.stats.accepted++
           }
-        })
+        }),
       )
 
       await executeAnalysis(analysis)
@@ -207,7 +268,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
             p.state = "denied"
             draft.stats.denied++
           }
-        })
+        }),
       )
     }
 
@@ -233,7 +294,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
               draft.stats.denied++
             }
           }
-        })
+        }),
       )
     }
 
@@ -259,7 +320,8 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
      * Enable/disable a specific trigger's auto-accept
      */
     async function setTriggerAutoAccept(triggerId: string, autoAccept: boolean) {
-      const root = await AFS.findRoot()
+      const startDir = sync.data.path.directory || sync.data.path.worktree || undefined
+      const root = await AFS.findRoot(startDir)
       if (!root) return
       await AnalysisTriggers.setAutoAccept(root, triggerId, autoAccept)
     }
@@ -268,7 +330,8 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
      * Disable a specific trigger
      */
     async function disableTrigger(triggerId: string) {
-      const root = await AFS.findRoot()
+      const startDir = sync.data.path.directory || sync.data.path.worktree || undefined
+      const root = await AFS.findRoot(startDir)
       if (!root) return
       await AnalysisTriggers.disableTrigger(root, triggerId)
     }
@@ -356,6 +419,7 @@ export const { use: useAnalysisGate, provider: AnalysisGateProvider } = createSi
       cycleMode,
       setTriggerAutoAccept,
       disableTrigger,
+      spawnSubagent,
 
       // Settings
       setShowNotifications(show: boolean) {

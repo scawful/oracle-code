@@ -22,6 +22,10 @@ const MOOD_CONFIG: Record<Emotions.Mood, { icon: string; label: string; color: "
   confident: { icon: "◆", label: "Confident", color: "success" },
   frustrated: { icon: "◇", label: "Frustrated", color: "warning" },
   curious: { icon: "◈", label: "Curious", color: "info" },
+  excited: { icon: "✨", label: "Excited", color: "success" },
+  determined: { icon: "💪", label: "Determined", color: "success" },
+  cautious: { icon: "🔍", label: "Cautious", color: "warning" },
+  relieved: { icon: "😌", label: "Relieved", color: "info" },
 }
 
 // Anxiety level thresholds

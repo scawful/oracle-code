@@ -2,11 +2,17 @@ import { For, Show, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../context/theme"
 import { useAFS } from "../context/afs"
+import { usePanes } from "../context/panes"
 import type { AFS } from "@/afs"
 
 export function AFSPanel() {
   const afs = useAFS()
   const { theme } = useTheme()
+  const panes = usePanes()
+
+  function openAFSPane() {
+    panes.split("vertical", "afs")
+  }
 
   const [expanded, setExpanded] = createStore({
     afs: true,
@@ -37,17 +43,11 @@ export function AFSPanel() {
     }
   }
 
-  const totalFiles = createMemo(() =>
-    afs.directories.reduce((sum, d) => sum + d.fileCount, 0),
-  )
+  const totalFiles = createMemo(() => afs.directories.reduce((sum, d) => sum + d.fileCount, 0))
 
   return (
     <box>
-      <box
-        flexDirection="row"
-        gap={1}
-        onMouseDown={() => setExpanded("afs", !expanded.afs)}
-      >
+      <box flexDirection="row" gap={1} onMouseDown={() => setExpanded("afs", !expanded.afs)}>
         <text fg={theme.text}>{expanded.afs ? "▼" : "▶"}</text>
         <text fg={afs.exists ? theme.success : theme.textMuted}>●</text>
         <text fg={theme.text}>
@@ -72,14 +72,11 @@ export function AFSPanel() {
                   flexDirection="row"
                   gap={1}
                   onMouseDown={() =>
-                    dir.fileCount > 0 &&
-                    setExpanded("directories", dir.name, !expanded.directories[dir.name])
+                    dir.fileCount > 0 && setExpanded("directories", dir.name, !expanded.directories[dir.name])
                   }
                 >
                   <Show when={dir.fileCount > 0}>
-                    <text fg={theme.textMuted}>
-                      {expanded.directories[dir.name] ? "▼" : "▶"}
-                    </text>
+                    <text fg={theme.textMuted}>{expanded.directories[dir.name] ? "▼" : "▶"}</text>
                   </Show>
                   <Show when={dir.fileCount === 0}>
                     <text fg={theme.textMuted}>·</text>
@@ -96,7 +93,7 @@ export function AFSPanel() {
                 <Show when={expanded.directories[dir.name] && dir.files.length > 0}>
                   <For each={dir.files.filter((f) => !f.isDirectory).slice(0, 10)}>
                     {(file) => (
-                      <box flexDirection="row" gap={1} paddingLeft={2}>
+                      <box flexDirection="row" gap={1} paddingLeft={2} onMouseDown={openAFSPane}>
                         <text fg={theme.textMuted}>📄 {file.name}</text>
                       </box>
                     )}
@@ -111,7 +108,13 @@ export function AFSPanel() {
             )}
           </For>
           <Show when={afs.planExists}>
-            <box flexDirection="row" gap={1} paddingLeft={1} paddingTop={1}>
+            <box
+              flexDirection="row"
+              gap={1}
+              paddingLeft={1}
+              paddingTop={1}
+              onMouseDown={() => panes.split("vertical", "plan")}
+            >
               <text fg={theme.success}>📋</text>
               <text fg={theme.text}>plan.md</text>
               <text fg={theme.textMuted}>(active)</text>

@@ -341,11 +341,26 @@ const DEFAULT_COUNCIL_CONFIG: z.infer<typeof CouncilConfig> = {
   councilAgents: ["explore", "critic", "general"],
 }
 
+// =============
+// Global Filter
+// =============
+
+export const GlobalFilter = z.object({
+  includeTags: z.array(z.string()).optional(), // Only include entries with these tags
+  excludeTags: z.array(z.string()).optional(), // Exclude entries with these tags
+  includeCategories: z.array(HivemindCategory).optional(), // Only include these categories
+  excludeCategories: z.array(HivemindCategory).optional(), // Exclude these categories
+  includeKeys: z.array(z.string()).optional(), // Only include entries with keys matching these patterns
+  excludeKeys: z.array(z.string()).optional(), // Exclude entries with keys matching these patterns
+})
+export type GlobalFilter = z.infer<typeof GlobalFilter>
+
 export const HivemindManifest = z.object({
   version: z.string().default("1.0.0"),
   lastSync: z.string(),
   contributors: z.array(z.string()).default([]), // Session IDs that contributed
   globalEnabled: z.boolean().default(false),
+  globalFilter: GlobalFilter.optional(), // Filter for which global entries to include
   stats: HivemindStats.default(DEFAULT_STATS),
   decay: DecayConfig.default(DEFAULT_DECAY_CONFIG),
   council: CouncilConfig.default(DEFAULT_COUNCIL_CONFIG),

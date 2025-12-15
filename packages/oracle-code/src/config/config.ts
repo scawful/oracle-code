@@ -37,9 +37,10 @@ export namespace Config {
     let result = await global()
 
     // Override with custom config if provided
-      if (Flag.OCODE_CONFIG) {
-        result = mergeConfigWithPlugins(result, await loadFile(Flag.OCODE_CONFIG))
-        log.debug("loaded custom config", { path: Flag.OCODE_CONFIG })    }
+    if (Flag.OCODE_CONFIG) {
+      result = mergeConfigWithPlugins(result, await loadFile(Flag.OCODE_CONFIG))
+      log.debug("loaded custom config", { path: Flag.OCODE_CONFIG })
+    }
 
     for (const file of ["opencode.jsonc", "opencode.json", "oracle-code.jsonc", "oracle-code.json"]) {
       const found = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
@@ -418,11 +419,15 @@ export namespace Config {
 
   export const Keybinds = z
     .object({
-      leader: z.string().optional().default("ctrl+x").describe("Leader key for keybind combinations"),
+      leader: z
+        .string()
+        .optional()
+        .default("ctrl+x,space")
+        .describe("Leader key (ctrl+x always works, space works when not in text input)"),
       app_exit: z.string().optional().default("ctrl+c,ctrl+d,<leader>q").describe("Exit the application"),
       editor_open: z.string().optional().default("<leader>e").describe("Open external editor"),
       theme_list: z.string().optional().default("<leader>T").describe("List available themes"),
-      sidebar_toggle: z.string().optional().default("<leader>bs").describe("Toggle sidebar"),
+      sidebar_toggle: z.string().optional().default("<leader>bS").describe("Toggle sidebar"),
       scrollbar_toggle: z.string().optional().default("none").describe("Toggle session scrollbar"),
       username_toggle: z.string().optional().default("none").describe("Toggle username visibility"),
       status_view: z.string().optional().default("<leader>S").describe("View status"),

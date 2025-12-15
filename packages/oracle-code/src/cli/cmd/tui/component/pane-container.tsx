@@ -1,5 +1,5 @@
-import { Show, createMemo } from "solid-js"
-import { usePanes, type PaneNode, type PaneLeaf } from "@tui/context/panes"
+import { Show, Switch, Match, createMemo } from "solid-js"
+import { usePanes, type PaneNode, type PaneLeaf, type PaneSplit } from "@tui/context/panes"
 import { useTheme } from "@tui/context/theme"
 import { PaneView } from "./pane-view"
 
@@ -52,75 +52,89 @@ export function PaneContainer(props: PaneContainerProps) {
  * 
  * Handles both leaf nodes (actual panes) and split nodes (containers).
  * Uses proper flex layout to ensure nested splits render correctly.
+ * 
+ * IMPORTANT: Uses Switch/Match for reactive rendering - plain if/else
+ * would only evaluate once at component creation, not when the tree changes.
  */
 export function PaneTreeRenderer(props: { node: PaneNode; sessionID: string }) {
   const panes = usePanes()
   const { theme } = useTheme()
 
-  // Handle leaf node - render actual pane content
-  if (props.node.type === "leaf") {
-    const leaf = props.node
-    const isActive = createMemo(() => panes.activeId === leaf.id)
-    return (
-      <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
-        <PaneView pane={leaf} sessionID={props.sessionID} isActive={isActive()} />
-      </box>
-    )
-  }
-
-  // Handle split node - divide space between two children
-  const split = props.node
-  const isVertical = split.direction === "vertical"
-  
-  // Use integer flex values for more precise distribution
-  const firstFlex = Math.round(split.ratio * 100)
-  const secondFlex = 100 - firstFlex
+  // Use reactive accessors for node properties
+  const nodeType = () => props.node.type
+  const isLeaf = () => nodeType() === "leaf"
+  const isSplit = () => nodeType() === "split"
 
   return (
-    <box
-      flexDirection={isVertical ? "row" : "column"}
-      flexGrow={1}
-      flexShrink={1}
-      flexBasis={0}
-      width="100%"
-      height="100%"
-    >
-      {/* First child pane */}
-      <box
-        flexGrow={firstFlex}
-        flexShrink={1}
-        flexBasis={0}
-        flexDirection={isVertical ? "column" : "row"}
-        minWidth={isVertical ? 10 : undefined}
-        minHeight={isVertical ? undefined : 3}
-        width={isVertical ? undefined : "100%"}
-        height={isVertical ? "100%" : undefined}
-      >
-        <PaneTreeRenderer node={split.first} sessionID={props.sessionID} />
-      </box>
+    <Switch>
+      {/* Leaf node - render actual pane content */}
+      <Match when={isLeaf() && (props.node as PaneLeaf)}>
+        {(leaf) => {
+          const isActive = createMemo(() => panes.activeId === leaf().id)
+          return (
+            <box flexGrow={1} flexShrink={1} flexBasis={0} width="100%" height="100%">
+              <PaneView pane={leaf()} sessionID={props.sessionID} isActive={isActive()} />
+            </box>
+          )
+        }}
+      </Match>
 
-      {/* Divider line between panes */}
-      <box
-        backgroundColor={theme.border}
-        width={isVertical ? 1 : "100%"}
-        height={isVertical ? "100%" : 1}
-        flexShrink={0}
-      />
+      {/* Split node - divide space between two children */}
+      <Match when={isSplit() && (props.node as PaneSplit)}>
+        {(split) => {
+          const isVertical = () => split().direction === "vertical"
+          const firstFlex = () => Math.round(split().ratio * 100)
+          const secondFlex = () => 100 - firstFlex()
 
-      {/* Second child pane */}
-      <box
-        flexGrow={secondFlex}
-        flexShrink={1}
-        flexBasis={0}
-        flexDirection={isVertical ? "column" : "row"}
-        minWidth={isVertical ? 10 : undefined}
-        minHeight={isVertical ? undefined : 3}
-        width={isVertical ? undefined : "100%"}
-        height={isVertical ? "100%" : undefined}
-      >
-        <PaneTreeRenderer node={split.second} sessionID={props.sessionID} />
-      </box>
-    </box>
+          return (
+            <box
+              flexDirection={isVertical() ? "row" : "column"}
+              flexGrow={1}
+              flexShrink={1}
+              flexBasis={0}
+              width="100%"
+              height="100%"
+            >
+              {/* First child pane */}
+              <box
+                flexGrow={firstFlex()}
+                flexShrink={1}
+                flexBasis={0}
+                flexDirection={isVertical() ? "column" : "row"}
+                minWidth={isVertical() ? 10 : undefined}
+                minHeight={isVertical() ? undefined : 3}
+                width={isVertical() ? undefined : "100%"}
+                height={isVertical() ? "100%" : undefined}
+              >
+                <PaneTreeRenderer node={split().first} sessionID={props.sessionID} />
+              </box>
+
+              {/* Divider line between panes */}
+              <box
+                backgroundColor={theme.border}
+                width={isVertical() ? 1 : "100%"}
+                height={isVertical() ? "100%" : 1}
+                flexShrink={0}
+              />
+
+              {/* Second child pane */}
+              <box
+                flexGrow={secondFlex()}
+                flexShrink={1}
+                flexBasis={0}
+                flexDirection={isVertical() ? "column" : "row"}
+                minWidth={isVertical() ? 10 : undefined}
+                minHeight={isVertical() ? undefined : 3}
+                width={isVertical() ? undefined : "100%"}
+                height={isVertical() ? "100%" : undefined}
+              >
+                <PaneTreeRenderer node={split().second} sessionID={props.sessionID} />
+              </box>
+            </box>
+          )
+        }}
+      </Match>
+    </Switch>
   )
 }
 

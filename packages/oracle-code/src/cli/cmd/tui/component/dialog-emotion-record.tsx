@@ -4,7 +4,7 @@ import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useDialog, type DialogContext } from "../ui/dialog"
 import { useToast } from "../ui/toast"
-import { AFS } from "@/afs"
+import { useAFS } from "../context/afs"
 import { Emotions } from "@/cognitive"
 
 type EmotionCategory = "fear" | "curiosity" | "satisfaction" | "frustration"
@@ -45,6 +45,7 @@ export function DialogEmotionRecord(props: DialogEmotionRecordProps) {
   const { theme } = useTheme()
   const dialog = useDialog()
   const toast = useToast()
+  const afs = useAFS()
 
   const [category, setCategory] = createSignal<EmotionCategory | null>(props.category || null)
   const [intensity, setIntensity] = createSignal(5)
@@ -74,7 +75,8 @@ export function DialogEmotionRecord(props: DialogEmotionRecordProps) {
     }
 
     try {
-      const root = await AFS.findRoot()
+      // Use afs.root from context for proper path resolution
+      const root = afs.root
       if (!root) {
         toast.show({ message: "AFS not initialized", variant: "error", duration: 2000 })
         return

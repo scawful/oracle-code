@@ -51,9 +51,20 @@ export namespace AFS {
 
   /**
    * Find the .context root by walking up from the given directory
+   * Falls back to process.cwd() if Instance context is not available (e.g., in TUI client)
    */
   export async function findRoot(startDir?: string): Promise<string | null> {
-    let current = startDir ?? Instance.directory
+    let current: string
+    if (startDir) {
+      current = startDir
+    } else {
+      try {
+        current = Instance.directory
+      } catch {
+        // Instance context not available (e.g., in TUI client process)
+        current = process.cwd()
+      }
+    }
     const root = path.parse(current).root
 
     while (current !== root) {
@@ -190,8 +201,16 @@ export namespace AFS {
     const root = contextRoot ?? (await findRoot())
 
     if (!root) {
+      // Get worktree with fallback to cwd for TUI client
+      let worktree: string
+      try {
+        worktree = Instance.worktree
+      } catch {
+        worktree = process.cwd()
+      }
+      
       return {
-        root: path.join(Instance.worktree, ".context"),
+        root: path.join(worktree, ".context"),
         exists: false,
         directories: Object.entries(DIRECTORIES).map(([name, info]) => ({
           name,

@@ -24,6 +24,12 @@ import { Epistemic } from "./epistemic"
 import { Emotions } from "./emotions"
 import { AnalysisTriggers } from "./analysis-triggers"
 import { Hivemind } from "./hivemind"
+import { CognitiveInference } from "./inference"
+import { EmotionTriggers } from "./emotion-triggers"
+import { Grounding } from "./grounding"
+import { Autonomy } from "./autonomy"
+import { HistoricalMemory } from "./historical-memory"
+import { ProjectConfig } from "./project-config"
 import type {
   HivemindState,
   HivemindEntry,
@@ -41,7 +47,7 @@ export namespace CognitiveIntegration {
 
   // Track if we've already initialized
   let initialized = false
-  
+
   // Track modified files since last decay check (for epistemic decay)
   let modifiedFilesSinceLastDecay: string[] = []
 
@@ -50,10 +56,18 @@ export namespace CognitiveIntegration {
   let consecutiveFailures = 0
   let consecutiveEditsWithoutTests = 0
   let recentTools: string[] = []
+  let recentActions: string[] = []
   let knownFiles: string[] = []
 
   // Pending analysis triggers (to be processed by UI)
   let pendingTriggers: AnalysisTriggers.TriggeredAnalysis[] = []
+
+  // Current session for historical memory
+  let currentSessionBuilder: HistoricalMemory.SessionMemoryBuilder | null = null
+  let currentSessionId: string | null = null
+
+  // Last grounding result (for user query)
+  let lastGroundingResult: Grounding.GroundingResult | null = null
 
   /**
    * Initialize the cognitive integration.
@@ -96,13 +110,20 @@ export namespace CognitiveIntegration {
           recentTools = recentTools.slice(-20)
         }
 
-        // Track edits without tests
-        if (part.tool === "edit" || part.tool === "write") {
-          consecutiveEditsWithoutTests++
+        // Track edits without tests and apply path emotions
+        if (part.tool === "edit" || part.tool === "write" || part.tool === "read") {
+          if (part.tool !== "read") {
+            consecutiveEditsWithoutTests++
+          }
           // Track files being edited
-          const filePath = (part.state.status === "completed" ? part.state.input : {}) as any
-          if (filePath?.filePath && !knownFiles.includes(filePath.filePath)) {
-            knownFiles.push(filePath.filePath)
+          const inputData = (part.state.status === "completed" ? part.state.input : {}) as any
+          const filePath = inputData?.filePath
+          if (filePath) {
+            if (!knownFiles.includes(filePath)) {
+              knownFiles.push(filePath)
+            }
+            // Apply path-specific emotions from project config
+            await Emotions.applyPathEmotions(root, filePath, currentSessionId || undefined)
           }
         } else if (part.tool === "bash") {
           // Check if it's a test command
@@ -112,31 +133,103 @@ export namespace CognitiveIntegration {
           }
         }
 
+        // Record action for grounding detection
+        recentActions.push(actionDescription)
+        if (recentActions.length > 20) {
+          recentActions = recentActions.slice(-20)
+        }
+        await Grounding.recordAction(root, actionDescription)
+
         // Record success or failure with emotional tracking
         if (part.state.status === "completed") {
           await Metacognition.recordSuccess(root)
+          await Grounding.recordSuccess(root)
           consecutiveSuccesses++
           consecutiveFailures = 0
-          
+
           // Boost confidence on success
           await Emotions.adjustConfidence(root, 2)
-          
+
           // Auto-record epistemic facts from tool outputs
           await recordEpistemicFactsFromTool(root, part)
+
+          // Detect emotions from tool patterns (using new trigger system)
+          await detectAndRecordEmotionsV2(root, part, "success")
           
-          // Detect emotions from tool patterns
-          await detectAndRecordEmotions(root, part, true)
+          // Evaluate emotion interactions
+          await evaluateEmotionInteractions(root, "success")
+
+          // Track in session builder
+          if (currentSessionBuilder) {
+            currentSessionBuilder.addTool(part.tool)
+            const filePath = (part.state.input as any)?.filePath
+            if (filePath) currentSessionBuilder.addFile(filePath)
+          }
         } else if (part.state.status === "error") {
           await Metacognition.recordFailure(root)
+          await Grounding.recordFailure(root)
           consecutiveFailures++
           consecutiveSuccesses = 0
-          
+
           // Increase anxiety on failure
           await Emotions.adjustAnxiety(root, 5)
           await Emotions.adjustConfidence(root, -3)
-          
+
           // Detect emotions from tool patterns
-          await detectAndRecordEmotions(root, part, false)
+          await detectAndRecordEmotionsV2(root, part, "failure")
+          
+          // Evaluate emotion interactions
+          await evaluateEmotionInteractions(root, "failure")
+
+          // Track problem in session builder
+          if (currentSessionBuilder) {
+            const errorOutput = (part.state as any)?.output || "Unknown error"
+            currentSessionBuilder.addProblem(`${part.tool}: ${errorOutput.slice(0, 100)}`)
+          }
+        }
+
+        // Check for grounding triggers
+        const emotionalState = await Emotions.read(root)
+        if (emotionalState) {
+          const groundingCheck = await Grounding.checkTriggers(root, {
+            emotionalState,
+            recentActions,
+            consecutiveFailures,
+          })
+          
+          if (groundingCheck.triggered && groundingCheck.trigger) {
+            log.info("grounding triggered", { trigger: groundingCheck.trigger, reason: groundingCheck.reason })
+            lastGroundingResult = await Grounding.ground(
+              root,
+              groundingCheck.trigger,
+              groundingCheck.reason || "Automatic detection",
+              { emotionalState, recentActions, consecutiveFailures }
+            )
+            
+            // Record in historical memory
+            if (currentSessionId) {
+              await HistoricalMemory.recordGroundingEvent(root, currentSessionId)
+            }
+            if (currentSessionBuilder) {
+              currentSessionBuilder.addKeyMoment({
+                timestamp: new Date().toISOString(),
+                type: "grounding",
+                description: lastGroundingResult.briefNote,
+                emotionalState: {
+                  timestamp: new Date().toISOString(),
+                  anxietyLevel: emotionalState.session.anxietyLevel,
+                  confidenceLevel: emotionalState.session.confidenceLevel,
+                  mood: emotionalState.session.mood,
+                  dominantEmotions: [],
+                },
+              })
+            }
+          }
+          
+          // Record emotional snapshot periodically for historical memory
+          if (currentSessionId && Math.random() < 0.1) { // ~10% chance per tool call
+            await HistoricalMemory.recordEmotionalSnapshot(root, currentSessionId, emotionalState)
+          }
         }
 
         // Check and update flow state
@@ -147,7 +240,13 @@ export namespace CognitiveIntegration {
           if (inFlow) {
             await Emotions.adjustConfidence(root, 15)
             await Emotions.updateMood(root, "confident", "Entered flow state")
-            await Emotions.addEmotion(root, "satisfaction", "Achieved flow state", "Operating smoothly with high effectiveness", 7)
+            await Emotions.addEmotion(
+              root,
+              "satisfaction",
+              "Achieved flow state",
+              "Operating smoothly with high effectiveness",
+              7,
+            )
           }
         }
 
@@ -177,6 +276,50 @@ export namespace CognitiveIntegration {
       }
     })
 
+    // Subscribe to assistant message text parts for inference-based updates
+    Bus.subscribe(MessageV2.Event.PartUpdated, async (event) => {
+      const part = event.properties.part
+      if (part.type !== "text") return
+
+      try {
+        const root = await AFS.findRoot()
+        if (!root) return
+
+        // Get text content from the part
+        const textContent = part.text || ""
+
+        // Quick check if worth analyzing
+        if (!CognitiveInference.hasSignals(textContent)) return
+
+        // Analyze message for cognitive signals
+        const messageInference = CognitiveInference.analyzeMessage(textContent)
+
+        // Analyze tool patterns
+        const toolInference = CognitiveInference.analyzeToolPattern("text", true, recentTools)
+
+        // Merge inferences
+        const combined = CognitiveInference.mergeInferences(messageInference, toolInference)
+
+        // Apply inferences (only significant changes)
+        await CognitiveInference.applyInference(root, combined)
+
+        // Log if significant inference was made
+        if (combined.moodHint || combined.progressStatus) {
+          log.info("applied cognitive inference", {
+            progressStatus: combined.progressStatus,
+            moodHint: combined.moodHint,
+            markers: {
+              progress: combined.markers.progress.length,
+              frustration: combined.markers.frustration.length,
+              completion: combined.markers.completion.length,
+            },
+          })
+        }
+      } catch (e) {
+        log.error("error applying cognitive inference", { error: e })
+      }
+    })
+
     // Subscribe to file watcher for epistemic decay tracking
     Bus.subscribe(FileWatcher.Event.Updated, async (event) => {
       try {
@@ -197,10 +340,7 @@ export namespace CognitiveIntegration {
    * Record epistemic facts from tool execution output.
    * Called when a tool completes successfully.
    */
-  async function recordEpistemicFactsFromTool(
-    root: string,
-    part: MessageV2.ToolPart
-  ): Promise<void> {
+  async function recordEpistemicFactsFromTool(root: string, part: MessageV2.ToolPart): Promise<void> {
     try {
       const settings = await Epistemic.getSettings(root)
       if (!settings.autoRecordFromTools) return
@@ -215,14 +355,7 @@ export namespace CognitiveIntegration {
           const filePath = (input as any)?.filePath
           if (filePath) {
             const fileName = filePath.replace(/[\/\\]/g, "_").replace(/\./g, "_")
-            await Epistemic.addWorkingFact(
-              root,
-              `file.${fileName}.exists`,
-              true,
-              0.95,
-              "file_read",
-              [filePath]
-            )
+            await Epistemic.addWorkingFact(root, `file.${fileName}.exists`, true, 0.95, "file_read", [filePath])
           }
           break
         }
@@ -233,13 +366,7 @@ export namespace CognitiveIntegration {
           if (pattern && output) {
             const matches = output.split("\n").filter((l: string) => l.trim()).length
             const patternKey = pattern.replace(/[*\/\\\.]/g, "_").replace(/__+/g, "_")
-            await Epistemic.addWorkingFact(
-              root,
-              `search.glob.${patternKey}.count`,
-              matches,
-              0.9,
-              "tool_output"
-            )
+            await Epistemic.addWorkingFact(root, `search.glob.${patternKey}.count`, matches, 0.9, "tool_output")
           }
           break
         }
@@ -250,13 +377,7 @@ export namespace CognitiveIntegration {
           if (searchPattern && output !== undefined) {
             const found = output && output.length > 0
             const patternKey = searchPattern.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)
-            await Epistemic.addWorkingFact(
-              root,
-              `search.grep.${patternKey}.found`,
-              found,
-              0.85,
-              "tool_output"
-            )
+            await Epistemic.addWorkingFact(root, `search.grep.${patternKey}.found`, found, 0.85, "tool_output")
           }
           break
         }
@@ -264,20 +385,14 @@ export namespace CognitiveIntegration {
         case "bash": {
           // Try to extract version information from common commands
           const command = (input as any)?.command || ""
-          
+
           // Detect version commands
           if (command.includes("--version") || command.includes("-v")) {
             const versionMatch = output?.match(/(\d+\.\d+(?:\.\d+)?)/)?.[1]
             if (versionMatch) {
               // Extract tool name from command
               const toolName = command.split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, "_")
-              await Epistemic.addWorkingFact(
-                root,
-                `runtime.${toolName}.version`,
-                versionMatch,
-                0.9,
-                "tool_output"
-              )
+              await Epistemic.addWorkingFact(root, `runtime.${toolName}.version`, versionMatch, 0.9, "tool_output")
             }
           }
           break
@@ -291,11 +406,7 @@ export namespace CognitiveIntegration {
   /**
    * Detect and record emotions from tool execution patterns.
    */
-  async function detectAndRecordEmotions(
-    root: string,
-    part: MessageV2.ToolPart,
-    success: boolean
-  ): Promise<void> {
+  async function detectAndRecordEmotions(root: string, part: MessageV2.ToolPart, success: boolean): Promise<void> {
     try {
       const settings = await Emotions.getSettings(root)
       if (!settings.enableAutoDetection) return
@@ -316,12 +427,165 @@ export namespace CognitiveIntegration {
           {
             tags: suggestion.tags,
             relatedFiles: suggestion.relatedFiles,
-          }
+          },
         )
         log.info("auto-recorded emotion", { category: suggestion.category, trigger: suggestion.trigger })
       }
     } catch (e) {
       log.error("error detecting emotions from tool", { error: e })
+    }
+  }
+
+  /**
+   * Enhanced emotion detection using the new trigger system (V2)
+   */
+  async function detectAndRecordEmotionsV2(
+    root: string,
+    part: MessageV2.ToolPart,
+    condition: "success" | "failure" | "discovery" | "obstacle"
+  ): Promise<void> {
+    try {
+      const settings = await Emotions.getSettings(root)
+      if (!settings.enableAutoDetection) return
+
+      // Detect progress-based triggers
+      const progressTriggers = EmotionTriggers.detectProgressSignals({
+        consecutiveSuccesses,
+        consecutiveFailures,
+        totalSuccesses: consecutiveSuccesses, // Simplified for now
+        totalFailures: consecutiveFailures,
+        recentTools,
+        goalsCompleted: 0,
+        goalsBlocked: 0,
+      })
+
+      // Detect code pattern triggers if we have a file path
+      const filePath = (part.state.status === "completed" ? part.state.input : {}) as any
+      let codePatternTriggers: EmotionTriggers.TriggerResult[] = []
+      if (filePath?.filePath) {
+        codePatternTriggers = EmotionTriggers.detectCodePatterns(filePath.filePath)
+      }
+
+      // Combine all triggers
+      const allTriggers = [...progressTriggers, ...codePatternTriggers]
+      const aggregatedDeltas = EmotionTriggers.aggregateEmotionDeltas(allTriggers)
+
+      // Apply aggregated emotion changes with momentum
+      for (const [category, delta] of aggregatedDeltas) {
+        if (Math.abs(delta) >= 2) { // Only apply significant changes
+          // Get current emotion for this category or create new one
+          const emotions = await Emotions.getEmotionsByCategory(root, category)
+          const existing = emotions[0]
+          
+          if (existing) {
+            // Apply momentum to existing emotion
+            const newIntensity = Emotions.applyMomentum(
+              category,
+              existing.intensity,
+              delta
+            )
+            await Emotions.updateEmotionIntensity(root, existing.id, newIntensity)
+          } else if (delta > 0) {
+            // Create new emotion
+            const triggers = allTriggers.filter(t => 
+              t.emotionDeltas.some(d => d.emotion === category)
+            )
+            const primaryTrigger = triggers[0]
+            if (primaryTrigger) {
+              await Emotions.addEmotion(
+                root,
+                category,
+                primaryTrigger.description,
+                `Detected from ${part.tool}`,
+                Math.min(10, delta),
+              )
+            }
+          }
+        }
+      }
+
+      // Log significant triggers
+      const significant = EmotionTriggers.getSignificantTriggers(allTriggers)
+      for (const trigger of significant) {
+        log.info("emotion trigger detected", {
+          category: trigger.category,
+          severity: trigger.severity,
+          description: trigger.description,
+        })
+      }
+    } catch (e) {
+      log.error("error in emotion detection v2", { error: e })
+    }
+  }
+
+  /**
+   * Evaluate and apply emotion interactions (compound states)
+   */
+  async function evaluateEmotionInteractions(
+    root: string,
+    condition: "success" | "failure" | "obstacle" | "discovery"
+  ): Promise<void> {
+    try {
+      const emotionalState = await Emotions.read(root)
+      if (!emotionalState) return
+
+      const interactions = Emotions.evaluateInteractions(emotionalState, condition)
+      const triggered = interactions.filter(i => i.triggered)
+
+      for (const { interaction } of triggered) {
+        log.info("emotion interaction triggered", {
+          id: interaction.id,
+          name: interaction.name,
+        })
+
+        // Apply the interaction results
+        for (const result of interaction.result) {
+          if (result.emotion === "anxiety") {
+            await Emotions.adjustAnxiety(root, result.delta)
+          } else if (result.emotion === "confidence") {
+            await Emotions.adjustConfidence(root, result.delta)
+          } else {
+            // Apply to emotion category
+            const emotions = await Emotions.getEmotionsByCategory(root, result.emotion)
+            const existing = emotions[0]
+            
+            if (existing) {
+              const newIntensity = Emotions.applyMomentum(
+                result.emotion,
+                existing.intensity,
+                result.delta
+              )
+              await Emotions.updateEmotionIntensity(root, existing.id, newIntensity)
+            } else if (result.delta > 0) {
+              await Emotions.addEmotion(
+                root,
+                result.emotion,
+                interaction.name,
+                result.narrative,
+                Math.min(10, result.delta),
+              )
+            }
+          }
+        }
+
+        // Record as key moment if significant
+        if (currentSessionBuilder && interaction.result.length > 2) {
+          currentSessionBuilder.addKeyMoment({
+            timestamp: new Date().toISOString(),
+            type: "emotional_shift",
+            description: `${interaction.name}: ${interaction.description}`,
+            emotionalState: {
+              timestamp: new Date().toISOString(),
+              anxietyLevel: emotionalState.session.anxietyLevel,
+              confidenceLevel: emotionalState.session.confidenceLevel,
+              mood: emotionalState.session.mood,
+              dominantEmotions: [],
+            },
+          })
+        }
+      }
+    } catch (e) {
+      log.error("error evaluating emotion interactions", { error: e })
     }
   }
 
@@ -332,9 +596,7 @@ export namespace CognitiveIntegration {
     const snapshot: AnalysisTriggers.CognitiveSnapshot = {
       consecutiveFailures,
       consecutiveEditsWithoutTests,
-      sameToolRepeatedCount: AnalysisTriggers.countSameToolRepeated(
-        recentTools.map((t) => ({ tool: t }))
-      ),
+      sameToolRepeatedCount: AnalysisTriggers.countSameToolRepeated(recentTools.map((t) => ({ tool: t }))),
       knownFiles,
     }
 
@@ -388,7 +650,13 @@ export namespace CognitiveIntegration {
           // If there's an emotion to record, record it
           if (analysis.trigger.suggestion.emotionToRecord) {
             const e = analysis.trigger.suggestion.emotionToRecord
-            await Emotions.addEmotion(root, e.category, e.trigger, `Auto-triggered: ${analysis.trigger.name}`, e.intensity)
+            await Emotions.addEmotion(
+              root,
+              e.category,
+              e.trigger,
+              `Auto-triggered: ${analysis.trigger.name}`,
+              e.intensity,
+            )
           }
           log.info("auto-accepted trigger", { trigger: analysis.trigger.name })
         } else {
@@ -479,7 +747,9 @@ export namespace CognitiveIntegration {
         lines.push("")
         lines.push("## Knowledge State")
         lines.push(`- Golden Facts: ${summary.goldenFactCount}/${summary.maxGoldenFacts}`)
-        lines.push(`- Working Facts: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% confident)`)
+        lines.push(
+          `- Working Facts: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% confident)`,
+        )
         if (summary.unvalidatedCount > 0) {
           lines.push(`- Assumptions: ${summary.assumptionCount} (${summary.unvalidatedCount} unvalidated)`)
         }
@@ -525,6 +795,13 @@ export namespace CognitiveIntegration {
       if (hivemindContext) {
         lines.push("")
         lines.push(hivemindContext)
+      }
+
+      // Analysis suggestions from triggers
+      const analysisSuggestions = await getAnalysisSuggestionsContext(root)
+      if (analysisSuggestions) {
+        lines.push("")
+        lines.push(analysisSuggestions)
       }
 
       lines.push("</cognitive_state>")
@@ -620,6 +897,91 @@ export namespace CognitiveIntegration {
   }
 
   /**
+   * Get analysis suggestions context for system prompt injection.
+   * Evaluates current cognitive state and suggests appropriate analysis modes.
+   */
+  async function getAnalysisSuggestionsContext(root: string): Promise<string | null> {
+    try {
+      const snapshot = await buildCognitiveSnapshot(root)
+      const triggered = await AnalysisTriggers.evaluateTriggers(root, snapshot)
+
+      // Also check for conditions that warrant analysis even without explicit triggers
+      const suggestions: string[] = []
+
+      // Check pending triggers (user hasn't acknowledged yet)
+      const pending = getPendingTriggers()
+      if (pending.length > 0) {
+        for (const t of pending.slice(0, 3)) {
+          const mode = t.trigger.suggestion.analysisMode
+          const prompt = t.trigger.suggestion.prompt
+          if (mode !== "none" && prompt) {
+            suggestions.push(`- **${t.trigger.name}**: ${prompt}`)
+          }
+        }
+      }
+
+      // Add newly triggered suggestions
+      for (const t of triggered.slice(0, 3)) {
+        const mode = t.trigger.suggestion.analysisMode
+        const prompt = t.trigger.suggestion.prompt
+        if (mode !== "none" && prompt) {
+          // Don't duplicate pending triggers
+          if (!pending.some((p) => p.trigger.id === t.trigger.id)) {
+            suggestions.push(`- **${t.trigger.name}**: ${prompt}`)
+          }
+        }
+      }
+
+      // Proactive suggestions based on state (not just triggers)
+      if (snapshot.cognitiveLoad && snapshot.cognitiveLoad > 70 && !suggestions.some((s) => s.includes("Cognitive"))) {
+        suggestions.push(
+          "- **High Load**: Consider breaking task into smaller steps or spawning explore agent to research",
+        )
+      }
+
+      if (
+        snapshot.consecutiveFailures &&
+        snapshot.consecutiveFailures >= 2 &&
+        !suggestions.some((s) => s.includes("fail"))
+      ) {
+        suggestions.push(
+          "- **Repeated Failures**: Spawn critic agent to review approach, or explore agent to find alternatives",
+        )
+      }
+
+      if (snapshot.isNewFileTerritory && !suggestions.some((s) => s.includes("territory"))) {
+        suggestions.push(
+          "- **New Territory**: Consider spawning explore agent to understand this area before making changes",
+        )
+      }
+
+      if (suggestions.length === 0) return null
+
+      const lines: string[] = []
+      lines.push("## Analysis Suggestions")
+      lines.push("")
+      lines.push("The following analysis actions are recommended based on current cognitive state:")
+      lines.push("")
+      lines.push(...suggestions)
+      lines.push("")
+      lines.push("### Available Analysis Agents")
+      lines.push("- **critic**: Harsh code reviewer for finding flaws, reviewing approach")
+      lines.push("- **explore**: Fast codebase navigator for research, finding files, understanding code")
+      lines.push("- **general**: Multi-purpose agent for complex tasks requiring multiple steps")
+      lines.push("- **test**: Testing specialist for writing/running tests")
+      lines.push("- **security**: Security auditor for vulnerability analysis")
+      lines.push("")
+      lines.push("**You have agency** to proactively spawn these agents when cognitive state suggests it.")
+      lines.push("Use the Task tool with the appropriate subagent_type. Don't wait for user permission")
+
+      return lines.join("\n")
+    } catch (e) {
+      log.error("error getting analysis suggestions context", { error: e })
+      return null
+    }
+  }
+
+  /**
    * Parse a user message to potentially extract goal information.
    * Returns suggested goal updates based on message content.
    */
@@ -664,10 +1026,7 @@ export namespace CognitiveIntegration {
   /**
    * Record that a strategy was used and whether it was effective.
    */
-  export async function recordStrategyOutcome(
-    strategy: Metacognition.Strategy,
-    effective: boolean,
-  ): Promise<void> {
+  export async function recordStrategyOutcome(strategy: Metacognition.Strategy, effective: boolean): Promise<void> {
     try {
       const root = await AFS.findRoot()
       if (!root) return
@@ -820,14 +1179,14 @@ export namespace CognitiveIntegration {
       await Goals.reset(root)
       await Epistemic.reset(root, "working") // Keep golden facts
       await Emotions.resetSessionEmotions(root) // Reset session, keep persistent emotions
-      
+
       // Reset tracking variables
       consecutiveSuccesses = 0
       consecutiveFailures = 0
       consecutiveEditsWithoutTests = 0
       recentTools = []
       pendingTriggers = []
-      
+
       log.info("cognitive state reset")
     } catch (e) {
       log.error("error resetting cognitive state", { error: e })
@@ -842,6 +1201,7 @@ export namespace CognitiveIntegration {
     epistemic: number
     emotional: { pruned: number; decayed: number }
     hivemind: { processed: number; warnings: number; expired: number }
+    sessionDecay: { anxietyDecayed: number; confidenceDecayed: number }
   }> {
     try {
       const root = await AFS.findRoot()
@@ -850,13 +1210,17 @@ export namespace CognitiveIntegration {
           epistemic: 0,
           emotional: { pruned: 0, decayed: 0 },
           hivemind: { processed: 0, warnings: 0, expired: 0 },
+          sessionDecay: { anxietyDecayed: 0, confidenceDecayed: 0 },
         }
 
       // Apply epistemic decay
       const epistemicPruned = await Epistemic.applyDecay(root, modifiedFilesSinceLastDecay)
 
-      // Apply emotional decay
+      // Apply emotional decay (persistent emotions)
       const emotionalResult = await Emotions.applyDecay(root)
+      
+      // Apply session decay (anxiety/confidence regression toward baseline)
+      const sessionDecayResult = await Emotions.applySessionDecay(root)
 
       // Apply hivemind decay and process promotions
       const hivemindResult = await applyHivemindDecay(root)
@@ -864,7 +1228,8 @@ export namespace CognitiveIntegration {
       // Clear tracked files after applying decay
       modifiedFilesSinceLastDecay = []
 
-      if (epistemicPruned > 0 || emotionalResult.pruned > 0 || hivemindResult.processed > 0) {
+      if (epistemicPruned > 0 || emotionalResult.pruned > 0 || hivemindResult.processed > 0 || 
+          Math.abs(sessionDecayResult.anxietyDecayed) > 1 || Math.abs(sessionDecayResult.confidenceDecayed) > 1) {
         log.info("decay applied", {
           epistemicPruned,
           emotionalPruned: emotionalResult.pruned,
@@ -872,16 +1237,19 @@ export namespace CognitiveIntegration {
           hivemindProcessed: hivemindResult.processed,
           hivemindWarnings: hivemindResult.warnings,
           hivemindExpired: hivemindResult.expired,
+          sessionAnxietyDecayed: sessionDecayResult.anxietyDecayed.toFixed(1),
+          sessionConfidenceDecayed: sessionDecayResult.confidenceDecayed.toFixed(1),
         })
       }
 
-      return { epistemic: epistemicPruned, emotional: emotionalResult, hivemind: hivemindResult }
+      return { epistemic: epistemicPruned, emotional: emotionalResult, hivemind: hivemindResult, sessionDecay: sessionDecayResult }
     } catch (e) {
       log.error("error applying decay", { error: e })
       return {
         epistemic: 0,
         emotional: { pruned: 0, decayed: 0 },
         hivemind: { processed: 0, warnings: 0, expired: 0 },
+        sessionDecay: { anxietyDecayed: 0, confidenceDecayed: 0 },
       }
     }
   }
@@ -889,9 +1257,7 @@ export namespace CognitiveIntegration {
   /**
    * Apply hivemind decay and process auto-promotions.
    */
-  async function applyHivemindDecay(
-    root: string
-  ): Promise<{ processed: number; warnings: number; expired: number }> {
+  async function applyHivemindDecay(root: string): Promise<{ processed: number; warnings: number; expired: number }> {
     try {
       // Process decay for all entries - this handles both warnings and expiry
       const decayResult = await Hivemind.Decay.processDecay(root, "project")
@@ -950,6 +1316,34 @@ export namespace CognitiveIntegration {
       return await Emotions.read(root)
     } catch (e) {
       log.error("error getting emotional state", { error: e })
+      return null
+    }
+  }
+
+  /**
+   * Set the agent mode, which affects emotional calibration.
+   */
+  export async function setAgentMode(mode: Emotions.AgentMode): Promise<void> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return
+      await Emotions.setAgentMode(root, mode)
+      log.info("agent mode set", { mode })
+    } catch (e) {
+      log.error("error setting agent mode", { error: e })
+    }
+  }
+
+  /**
+   * Get the current agent mode.
+   */
+  export async function getAgentMode(): Promise<Emotions.AgentMode | null> {
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return null
+      return await Emotions.getAgentMode(root)
+    } catch (e) {
+      log.error("error getting agent mode", { error: e })
       return null
     }
   }
@@ -1074,7 +1468,7 @@ export namespace CognitiveIntegration {
             originalEntryId: options.originalEntryId,
           },
         },
-        root
+        root,
       )
 
       log.info("promoted entry to hivemind", {
@@ -1107,7 +1501,9 @@ export namespace CognitiveIntegration {
         const summary = Metacognition.getStatusSummary(metaState)
         sections.push("## Cognitive")
         sections.push("")
-        sections.push(`- **Strategy**: ${summary.strategy} (${Math.round(summary.strategyEffectiveness * 100)}% effective)`)
+        sections.push(
+          `- **Strategy**: ${summary.strategy} (${Math.round(summary.strategyEffectiveness * 100)}% effective)`,
+        )
         sections.push(`- **Progress**: ${summary.progress.replace("_", " ")}`)
         sections.push(`- **Cognitive Load**: ${summary.cognitiveLoad}%`)
         sections.push(`- **Flow State**: ${summary.flowState ? "Active" : "Inactive"}`)
@@ -1142,7 +1538,9 @@ export namespace CognitiveIntegration {
         sections.push("## Knowledge")
         sections.push("")
         sections.push(`- **Golden Facts**: ${summary.goldenFactCount}/${summary.maxGoldenFacts}`)
-        sections.push(`- **Working Facts**: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% avg confidence)`)
+        sections.push(
+          `- **Working Facts**: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% avg confidence)`,
+        )
         if (summary.assumptionCount > 0) {
           sections.push(`- **Assumptions**: ${summary.assumptionCount} (${summary.unvalidatedCount} unvalidated)`)
         }
@@ -1175,7 +1573,9 @@ export namespace CognitiveIntegration {
         sections.push(`- **Mood**: ${moodEmoji[summary.mood] || ""} ${summary.mood}`)
         sections.push(`- **Anxiety**: ${summary.anxietyLevel}%`)
         sections.push(`- **Confidence**: ${summary.confidenceLevel}%`)
-        sections.push(`- **Emotions**: ${summary.fearCount} fears, ${summary.curiosityCount} curiosities, ${summary.satisfactionCount} satisfactions, ${summary.frustrationCount} frustrations`)
+        sections.push(
+          `- **Emotions**: ${summary.fearCount} fears, ${summary.curiosityCount} curiosities, ${summary.satisfactionCount} satisfactions, ${summary.frustrationCount} frustrations`,
+        )
         sections.push("")
         sections.push("_See `.context/scratchpad/emotions.json` for full details_")
         sections.push("")
@@ -1240,12 +1640,12 @@ export namespace CognitiveIntegration {
       }
 
       const summary = Emotions.getStatusSummary(emotionalState)
-      
+
       // Update critic state with emotional context
       const newTone = critic.updateState(
         summary.anxietyLevel / 100, // Normalize to 0-1
         summary.frustrationCount,
-        consecutiveFailures === 0 // Success if no recent failures
+        consecutiveFailures === 0, // Success if no recent failures
       )
 
       log.info("critic state updated", {
@@ -1311,5 +1711,406 @@ export namespace CognitiveIntegration {
     frustrationCount: number
   } {
     return getCritic().getState()
+  }
+
+  // =============
+  // Session Management
+  // =============
+
+  /**
+   * Start a new session for historical memory tracking
+   */
+  export async function startSession(projectId?: string): Promise<string> {
+    const root = await AFS.findRoot()
+    if (root) {
+      await HistoricalMemory.init(root)
+    }
+    
+    currentSessionBuilder = HistoricalMemory.createSessionBuilder(projectId)
+    currentSessionId = currentSessionBuilder["memory"].id as string
+    
+    log.info("session started", { sessionId: currentSessionId })
+    return currentSessionId
+  }
+
+  /**
+   * End the current session and save to historical memory
+   */
+  export async function endSession(outcome?: HistoricalMemory.SessionOutcome): Promise<void> {
+    if (!currentSessionBuilder) return
+    
+    try {
+      const root = await AFS.findRoot()
+      if (!root) return
+
+      // Get final emotional arc
+      if (currentSessionId) {
+        const arcPath = `${root}/history/emotional-arcs/${currentSessionId}.json`
+        try {
+          const arcContent = await (await import("fs/promises")).readFile(arcPath, "utf-8")
+          const arc = HistoricalMemory.EmotionalArc.parse(JSON.parse(arcContent))
+          currentSessionBuilder.setEmotionalArc(arc)
+        } catch {
+          // Arc may not exist
+        }
+      }
+
+      // Set outcome
+      if (outcome) {
+        currentSessionBuilder.setOutcome(outcome)
+      }
+
+      // Get autonomy level
+      const autonomyLevel = await Autonomy.getLevel(root)
+      currentSessionBuilder.setAutonomyLevel(autonomyLevel)
+
+      // Get agent mode
+      const agentMode = await Emotions.getAgentMode(root)
+      currentSessionBuilder.setAgentMode(agentMode)
+
+      // Build and store
+      const memory = currentSessionBuilder.build()
+      await HistoricalMemory.storeSession(root, memory)
+
+      log.info("session ended and stored", { sessionId: memory.id, duration: memory.duration })
+    } catch (e) {
+      log.error("error ending session", { error: e })
+    } finally {
+      currentSessionBuilder = null
+      currentSessionId = null
+    }
+  }
+
+  /**
+   * Add a goal to the current session
+   */
+  export function addSessionGoal(goal: string): void {
+    currentSessionBuilder?.addGoal(goal)
+  }
+
+  /**
+   * Add a decision to the current session
+   */
+  export function addSessionDecision(decision: string): void {
+    currentSessionBuilder?.addDecision(decision)
+  }
+
+  /**
+   * Add a key moment to the current session
+   */
+  export async function addSessionKeyMoment(
+    type: HistoricalMemory.KeyMoment["type"],
+    description: string
+  ): Promise<void> {
+    if (!currentSessionBuilder) return
+
+    const root = await AFS.findRoot()
+    const emotionalState = root ? await Emotions.read(root) : null
+
+    currentSessionBuilder.addKeyMoment({
+      timestamp: new Date().toISOString(),
+      type,
+      description,
+      emotionalState: emotionalState ? {
+        timestamp: new Date().toISOString(),
+        anxietyLevel: emotionalState.session.anxietyLevel,
+        confidenceLevel: emotionalState.session.confidenceLevel,
+        mood: emotionalState.session.mood,
+        dominantEmotions: [],
+      } : {
+        timestamp: new Date().toISOString(),
+        anxietyLevel: 30,
+        confidenceLevel: 50,
+        mood: "neutral",
+        dominantEmotions: [],
+      },
+    })
+  }
+
+  // =============
+  // Autonomy Integration
+  // =============
+
+  /**
+   * Get current autonomy level
+   */
+  export async function getAutonomyLevel(): Promise<number> {
+    const root = await AFS.findRoot()
+    if (!root) return 70 // Default
+    return await Autonomy.getLevel(root)
+  }
+
+  /**
+   * Get current autonomy mode
+   */
+  export async function getAutonomyMode(): Promise<Autonomy.AutonomyMode> {
+    const root = await AFS.findRoot()
+    if (!root) return "agentic"
+    return await Autonomy.getMode(root)
+  }
+
+  /**
+   * Set autonomy level
+   */
+  export async function setAutonomyLevel(level: number, reason: string): Promise<void> {
+    const root = await AFS.findRoot()
+    if (!root) return
+    await Autonomy.setLevel(root, level, reason)
+    log.info("autonomy level set", { level, reason })
+  }
+
+  /**
+   * Set autonomy preset
+   */
+  export async function setAutonomyPreset(preset: keyof typeof Autonomy.PRESETS): Promise<void> {
+    const root = await AFS.findRoot()
+    if (!root) return
+    await Autonomy.setPreset(root, preset)
+    log.info("autonomy preset set", { preset, level: Autonomy.PRESETS[preset] })
+  }
+
+  /**
+   * Get autonomy behavior settings
+   */
+  export async function getAutonomyBehavior(): Promise<Autonomy.AutonomyBehavior> {
+    const root = await AFS.findRoot()
+    if (!root) {
+      return {
+        level: 70,
+        mode: "agentic",
+        shouldPushBackOnRiskyRequests: true,
+        shouldProactivelySpawnAgents: true,
+        shouldExplainDecisions: true,
+        shouldAskBeforeProceeding: false,
+        userCorrectionImpact: 0.8,
+        userPraiseImpact: 0.5,
+        expressionMultiplier: 0.85,
+      }
+    }
+    return await Autonomy.getBehavior(root)
+  }
+
+  /**
+   * Process autonomy commands from user message
+   */
+  export async function processAutonomyCommand(message: string): Promise<boolean> {
+    const parsed = Autonomy.parseAutonomyCommand(message)
+    if (!parsed.detected) return false
+
+    const root = await AFS.findRoot()
+    if (!root) return false
+
+    if (parsed.preset) {
+      await Autonomy.setPreset(root, parsed.preset)
+    } else if (parsed.delta) {
+      await Autonomy.adjustForSession(root, parsed.delta, parsed.reason || "User command")
+    }
+
+    // Record trust signal
+    if (parsed.delta && parsed.delta > 0) {
+      await Autonomy.recordTrustSignal(root, true)
+    }
+
+    return true
+  }
+
+  // =============
+  // Grounding Integration
+  // =============
+
+  /**
+   * Manually trigger grounding
+   */
+  export async function triggerGrounding(): Promise<Grounding.GroundingResult | null> {
+    const root = await AFS.findRoot()
+    if (!root) return null
+
+    const emotionalState = await Emotions.read(root)
+    if (!emotionalState) return null
+
+    lastGroundingResult = await Grounding.manualGround(root, emotionalState, recentActions)
+    
+    if (currentSessionId) {
+      await HistoricalMemory.recordGroundingEvent(root, currentSessionId)
+    }
+
+    return lastGroundingResult
+  }
+
+  /**
+   * Get the last grounding result (for user query "why did you reset?")
+   */
+  export function getLastGroundingResult(): Grounding.GroundingResult | null {
+    return lastGroundingResult
+  }
+
+  /**
+   * Get grounding history
+   */
+  export async function getGroundingHistory(limit: number = 10): Promise<Grounding.GroundingIncident[]> {
+    const root = await AFS.findRoot()
+    if (!root) return []
+    return await Grounding.getHistory(root, limit)
+  }
+
+  // =============
+  // Historical Memory Integration
+  // =============
+
+  /**
+   * Recall relevant memories for current context
+   */
+  export async function recallMemories(context: {
+    currentGoal?: string
+    currentFiles?: string[]
+    currentProblems?: string[]
+  }): Promise<HistoricalMemory.RetrievedMemory[]> {
+    const root = await AFS.findRoot()
+    if (!root) return []
+
+    const emotionalState = await Emotions.read(root)
+    
+    return await HistoricalMemory.recall(root, {
+      ...context,
+      emotionalState: emotionalState || undefined,
+    })
+  }
+
+  /**
+   * Apply emotional context from historical memories
+   */
+  export async function applyHistoricalEmotionalContext(
+    memories: HistoricalMemory.RetrievedMemory[]
+  ): Promise<void> {
+    const root = await AFS.findRoot()
+    if (!root) return
+
+    for (const memory of memories.slice(0, 3)) { // Limit influence
+      const lesson = memory.emotionalLesson
+
+      // Apply cautions from similar past experiences
+      for (const caution of lesson.applicableCautions) {
+        await Emotions.addEmotion(
+          root,
+          "caution",
+          caution.trigger,
+          `From past experience: ${caution.reason}`,
+          Math.round(caution.intensity * memory.relevance),
+        )
+      }
+
+      // If past experience was successful, boost confidence
+      if (lesson.approachesThatWorked.length > 0) {
+        await Emotions.adjustConfidence(root, Math.round(3 * memory.relevance))
+      }
+
+      // If past experience had recovery, note it
+      if (lesson.recoverySuccessful) {
+        log.info("historical memory indicates recovery was successful", {
+          sessionId: memory.session.id,
+        })
+      }
+    }
+  }
+
+  /**
+   * Get historical memory summary
+   */
+  export async function getHistoricalMemorySummary(): Promise<{
+    totalSessions: number
+    recentSessions: number
+    config: HistoricalMemory.MemoryConfig
+  } | null> {
+    const root = await AFS.findRoot()
+    if (!root) return null
+
+    const sessions = await HistoricalMemory.listSessions(root, 100)
+    const config = await HistoricalMemory.getConfig(root)
+
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const recentSessions = sessions.filter(s => new Date(s.timestamp) > oneWeekAgo).length
+
+    return {
+      totalSessions: sessions.length,
+      recentSessions,
+      config,
+    }
+  }
+
+  // =============
+  // Project Config Integration
+  // =============
+
+  /**
+   * Get the current project's emotional config
+   */
+  export async function getProjectConfig(): Promise<ProjectConfig.ProjectEmotionalConfig | null> {
+    const root = await AFS.findRoot()
+    if (!root) return null
+    return await Emotions.getProjectConfig(root)
+  }
+
+  /**
+   * Get current expression level based on project config and mode
+   */
+  export async function getExpressionLevel(): Promise<ProjectConfig.ExpressionLevel> {
+    const root = await AFS.findRoot()
+    if (!root) return "noted"
+    return await Emotions.getExpressionLevel(root)
+  }
+
+  /**
+   * Discover all projects with emotional configs
+   */
+  export async function discoverProjects(): Promise<ProjectConfig.DiscoveredProject[]> {
+    return await ProjectConfig.discoverAllProjects()
+  }
+
+  /**
+   * Initialize project config for current directory if it doesn't exist
+   */
+  export async function initializeProjectConfig(projectName?: string): Promise<boolean> {
+    const root = await AFS.findRoot()
+    if (!root) return false
+    return await ProjectConfig.initializeIfNeeded(root, projectName)
+  }
+
+  /**
+   * Save project config
+   */
+  export async function saveProjectConfig(
+    config: ProjectConfig.ProjectEmotionalConfig
+  ): Promise<void> {
+    const root = await AFS.findRoot()
+    if (!root) return
+    await ProjectConfig.saveConfig(root, config)
+    // Clear cache to reload on next access
+    Emotions.clearProjectConfigCache()
+  }
+
+  /**
+   * Get path-specific emotions for a file
+   */
+  export async function getPathEmotions(
+    filePath: string
+  ): Promise<ProjectConfig.PathEmotionTrigger[]> {
+    const root = await AFS.findRoot()
+    if (!root) return []
+    return await Emotions.getPathEmotions(root, filePath)
+  }
+
+  /**
+   * Get example project configs
+   */
+  export function getExampleConfigs(): {
+    cpp: ProjectConfig.ProjectEmotionalConfig
+    journal: ProjectConfig.ProjectEmotionalConfig
+    asm: ProjectConfig.ProjectEmotionalConfig
+  } {
+    return {
+      cpp: ProjectConfig.EXAMPLE_CPP_PROJECT,
+      journal: ProjectConfig.EXAMPLE_JOURNAL_PROJECT,
+      asm: ProjectConfig.EXAMPLE_ASM_PROJECT,
+    }
   }
 }

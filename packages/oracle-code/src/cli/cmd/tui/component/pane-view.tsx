@@ -1,17 +1,31 @@
 import { Match, Switch, Show, createMemo, For } from "solid-js"
-import { usePanes, getActiveTab, type PaneLeaf, type PaneViewType, type PaneTab, type FloatingPane } from "@tui/context/panes"
+import {
+  usePanes,
+  getActiveTab,
+  type PaneLeaf,
+  type PaneViewType,
+  type PaneTab,
+  type FloatingPane,
+} from "@tui/context/panes"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useKeybind } from "@tui/context/keybind"
 import { TextAttributes } from "@opentui/core"
 
 // Import real view components
+import { HomeView } from "./views/home-view"
 import { ToMView } from "./views/tom-view"
 import { MetricsView } from "./views/metrics-view"
-import { AgentsView } from "./views/agents-view"
+import { OrchestrationAgentsView } from "./views/orchestration-agents-view"
 import { AFSView } from "./views/afs-view"
 import { OutcomesView } from "./views/outcomes-view"
 import { ChatView } from "./views/chat-view"
+import { MessagesView } from "./views/messages-view"
+import { CognitiveView } from "./views/cognitive-view"
+import { HivemindView } from "./views/hivemind-view"
+import { StateView } from "./views/state-view"
+import { TodoView } from "./views/todo-view"
+import { PlanView } from "./views/plan-view"
 
 /**
  * PaneView - Individual pane wrapper with view type switching
@@ -91,11 +105,7 @@ export function PaneView(props: PaneViewProps) {
     >
       {/* Tab bar when multiple tabs */}
       <Show when={hasTabs()}>
-        <TabBar
-          tabs={props.pane.tabs || []}
-          activeIndex={props.pane.activeTabIndex}
-          isActive={props.isActive}
-        />
+        <TabBar tabs={props.pane.tabs || []} activeIndex={props.pane.activeTabIndex} isActive={props.isActive} />
       </Show>
 
       {/* View header (single tab mode) */}
@@ -106,6 +116,9 @@ export function PaneView(props: PaneViewProps) {
       {/* View content based on active tab */}
       <box flexGrow={1} overflow="hidden">
         <Switch fallback={<PlaceholderView viewType={activeTab().viewType} />}>
+          <Match when={activeTab().viewType === "home"}>
+            <HomeView paneId={props.pane.id} isActive={props.isActive} />
+          </Match>
           <Match when={activeTab().viewType === "chat"}>
             <ChatView sessionID={chatSessionID()} isActive={props.isActive} />
           </Match>
@@ -119,22 +132,32 @@ export function PaneView(props: PaneViewProps) {
             <MetricsView isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "agents"}>
-            <AgentsView isActive={props.isActive} />
+            <OrchestrationAgentsView
+              paneId={props.pane.id}
+              isActive={props.isActive}
+              currentSessionId={chatSessionID()}
+            />
           </Match>
           <Match when={activeTab().viewType === "outcomes"}>
             <OutcomesView paneId={props.pane.id} isActive={props.isActive} />
           </Match>
-          <Match when={activeTab().viewType === "diff"}>
-            <DiffPlaceholder />
+          <Match when={activeTab().viewType === "messages"}>
+            <MessagesView paneId={props.pane.id} isActive={props.isActive} />
+          </Match>
+          <Match when={activeTab().viewType === "cognitive"}>
+            <CognitiveView paneId={props.pane.id} isActive={props.isActive} />
+          </Match>
+          <Match when={activeTab().viewType === "hivemind"}>
+            <HivemindView paneId={props.pane.id} isActive={props.isActive} />
+          </Match>
+          <Match when={activeTab().viewType === "state"}>
+            <StateView paneId={props.pane.id} isActive={props.isActive} />
           </Match>
           <Match when={activeTab().viewType === "todo"}>
-            <TodoPlaceholder />
+            <TodoView paneId={props.pane.id} isActive={props.isActive} sessionID={chatSessionID()} />
           </Match>
-          <Match when={activeTab().viewType === "sidebar"}>
-            <SidebarPlaceholder />
-          </Match>
-          <Match when={activeTab().viewType === "orchestrator"}>
-            <OrchestratorPlaceholder />
+          <Match when={activeTab().viewType === "plan"}>
+            <PlanView paneId={props.pane.id} isActive={props.isActive} />
           </Match>
         </Switch>
       </box>
@@ -152,35 +175,41 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
 
   const getTabIcon = (viewType: PaneViewType): string => {
     const icons: Record<PaneViewType, string> = {
+      home: "󰋜",
       chat: "󰭻",
       afs: "󰉋",
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
       outcomes: "󰄩",
-      diff: "󰦓",
       todo: "󰄬",
-      sidebar: "󰕰",
-      orchestrator: "󰑣",
+      messages: "󰍡",
+      cognitive: "󰠭",
+      hivemind: "󰛶",
+      state: "󰈙",
+      plan: "󰙅",
     }
-    return icons[viewType]
+    return icons[viewType] || "󰈔"
   }
 
   const getTabLabel = (tab: PaneTab): string => {
     if (tab.label) return tab.label
     const labels: Record<PaneViewType, string> = {
+      home: "*home*",
       chat: "Chat",
       afs: "AFS",
       tom: "ToM",
       metrics: "Metrics",
       agents: "Agents",
       outcomes: "Outcomes",
-      diff: "Diff",
       todo: "Todo",
-      sidebar: "Sidebar",
-      orchestrator: "Orchestrator",
+      messages: "Messages",
+      cognitive: "Cognitive",
+      hivemind: "Hivemind",
+      state: "State",
+      plan: "Plan",
     }
-    return labels[tab.viewType]
+    return labels[tab.viewType] || tab.viewType
   }
 
   return (
@@ -234,34 +263,40 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
 
   const viewLabel = createMemo(() => {
     const labels: Record<PaneViewType, string> = {
+      home: "*home*",
       chat: "Chat",
       afs: "AFS Browser",
       tom: "Theory of Mind",
       metrics: "Metrics",
       agents: "Agents",
       outcomes: "Outcomes",
-      diff: "Diff",
       todo: "Todo",
-      sidebar: "Sidebar",
-      orchestrator: "Orchestrator",
+      messages: "Messages",
+      cognitive: "Cognitive",
+      hivemind: "Hivemind",
+      state: "State",
+      plan: "Plan",
     }
-    return labels[props.viewType]
+    return labels[props.viewType] || props.viewType
   })
 
   const icon = createMemo(() => {
     const icons: Record<PaneViewType, string> = {
+      home: "󰋜",
       chat: "󰭻",
       afs: "󰉋",
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
       outcomes: "󰄩",
-      diff: "󰦓",
       todo: "󰄬",
-      sidebar: "󰕰",
-      orchestrator: "󰑣",
+      messages: "󰍡",
+      cognitive: "󰠭",
+      hivemind: "󰛶",
+      state: "󰈙",
+      plan: "󰙅",
     }
-    return icons[props.viewType]
+    return icons[props.viewType] || "󰈔"
   })
 
   // Focus indicator character
@@ -283,9 +318,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       flexShrink={0}
     >
       <box flexDirection="row" gap={1}>
-        <text fg={props.isActive ? theme.primary : theme.textMuted}>
-          {focusIndicator()}
-        </text>
+        <text fg={props.isActive ? theme.primary : theme.textMuted}>{focusIndicator()}</text>
         <text fg={props.isActive ? theme.primary : theme.textMuted} attributes={TextAttributes.BOLD}>
           {icon()} {viewLabel()}
         </text>
@@ -311,81 +344,6 @@ function PlaceholderView(props: { viewType: PaneViewType }) {
   return (
     <box flexGrow={1} justifyContent="center" alignItems="center">
       <text fg={theme.textMuted}>{props.viewType} view - Coming soon</text>
-    </box>
-  )
-}
-
-
-/**
- * Placeholder for Diff view
- * TODO: Implement diff view showing session changes
- */
-function DiffPlaceholder() {
-  const { theme } = useTheme()
-
-  return (
-    <box flexGrow={1} flexDirection="column" padding={1}>
-      <text fg={theme.text}>Diff View</text>
-      <text fg={theme.textMuted} marginTop={1}>No changes to display</text>
-    </box>
-  )
-}
-
-/**
- * Placeholder for Todo view
- */
-function TodoPlaceholder() {
-  const { theme } = useTheme()
-
-  return (
-    <box flexGrow={1} flexDirection="column" padding={1}>
-      <text fg={theme.text}>Todo List</text>
-      <text fg={theme.textMuted} marginTop={1}>No todos</text>
-    </box>
-  )
-}
-
-/**
- * Placeholder for Sidebar view
- */
-function SidebarPlaceholder() {
-  const { theme } = useTheme()
-
-  return (
-    <box flexGrow={1} flexDirection="column" padding={1}>
-      <text fg={theme.text}>Sidebar</text>
-      <text fg={theme.textMuted} marginTop={1}>Traditional sidebar content</text>
-    </box>
-  )
-}
-
-/**
- * Placeholder for Orchestrator view
- * TODO: Implement full orchestrator with subagent management
- */
-function OrchestratorPlaceholder() {
-  const { theme } = useTheme()
-  const keybind = useKeybind()
-
-  return (
-    <box flexGrow={1} flexDirection="column" padding={1}>
-      <text fg={theme.text}>󰑣 Orchestrator</text>
-      <text fg={theme.textMuted} marginTop={1}>
-        Multi-agent orchestration panel
-      </text>
-      <text fg={theme.textMuted} marginTop={1}>
-        • Spawn and manage subagents
-      </text>
-      <text fg={theme.textMuted}>
-        • Monitor agent communication
-      </text>
-      <text fg={theme.textMuted}>
-        • Coordinate parallel tasks
-      </text>
-      <box marginTop={2}>
-        <text fg={theme.primary}>{keybind.print("leader")} b O</text>
-        <text fg={theme.textMuted}> to open in new pane</text>
-      </box>
     </box>
   )
 }
@@ -424,7 +382,7 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
         const width = () => Math.floor(dimensions().width * floating.width)
         const height = () => Math.floor(dimensions().height * floating.height)
 
-        const borderColor = () => isActive() ? theme.warning : theme.border
+        const borderColor = () => (isActive() ? theme.warning : theme.border)
 
         return (
           <box
@@ -436,32 +394,36 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
             onMouseDown={() => panes.bringToFront(floating.pane.id)}
             borderColor={borderColor()}
             border={["top", "bottom", "left", "right"]}
-            customBorderChars={isActive() ? {
-              topLeft: "╔",
-              topRight: "╗",
-              bottomLeft: "╚",
-              bottomRight: "╝",
-              horizontal: "═",
-              vertical: "║",
-              bottomT: "╩",
-              topT: "╦",
-              cross: "╬",
-              leftT: "╠",
-              rightT: "╣",
-            } : undefined}
+            customBorderChars={
+              isActive()
+                ? {
+                    topLeft: "╔",
+                    topRight: "╗",
+                    bottomLeft: "╚",
+                    bottomRight: "╝",
+                    horizontal: "═",
+                    vertical: "║",
+                    bottomT: "╩",
+                    topT: "╦",
+                    cross: "╬",
+                    leftT: "╠",
+                    rightT: "╣",
+                  }
+                : undefined
+            }
             backgroundColor={theme.background}
             overflow="hidden"
             flexDirection="column"
           >
             {/* Floating pane header with float indicator */}
-            <FloatingPaneHeader
-              pane={floating.pane}
-              isActive={isActive()}
-            />
+            <FloatingPaneHeader pane={floating.pane} isActive={isActive()} />
 
             {/* View content */}
             <box flexGrow={1} overflow="hidden">
               <Switch fallback={<PlaceholderView viewType={getActiveTab(floating.pane).viewType} />}>
+                <Match when={getActiveTab(floating.pane).viewType === "home"}>
+                  <HomeView paneId={floating.pane.id} isActive={isActive()} />
+                </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "chat"}>
                   <ChatView sessionID={chatSessionID()} isActive={isActive()} />
                 </Match>
@@ -475,22 +437,32 @@ export function FloatingPaneOverlay(props: { sessionID: string }) {
                   <MetricsView isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "agents"}>
-                  <AgentsView isActive={isActive()} />
+                  <OrchestrationAgentsView
+                    paneId={floating.pane.id}
+                    isActive={isActive()}
+                    currentSessionId={chatSessionID()}
+                  />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "outcomes"}>
                   <OutcomesView paneId={floating.pane.id} isActive={isActive()} />
                 </Match>
-                <Match when={getActiveTab(floating.pane).viewType === "diff"}>
-                  <DiffPlaceholder />
+                <Match when={getActiveTab(floating.pane).viewType === "messages"}>
+                  <MessagesView paneId={floating.pane.id} isActive={isActive()} />
+                </Match>
+                <Match when={getActiveTab(floating.pane).viewType === "cognitive"}>
+                  <CognitiveView paneId={floating.pane.id} isActive={isActive()} />
+                </Match>
+                <Match when={getActiveTab(floating.pane).viewType === "hivemind"}>
+                  <HivemindView paneId={floating.pane.id} isActive={isActive()} />
+                </Match>
+                <Match when={getActiveTab(floating.pane).viewType === "state"}>
+                  <StateView paneId={floating.pane.id} isActive={isActive()} />
                 </Match>
                 <Match when={getActiveTab(floating.pane).viewType === "todo"}>
-                  <TodoPlaceholder />
+                  <TodoView paneId={floating.pane.id} isActive={isActive()} sessionID={chatSessionID()} />
                 </Match>
-                <Match when={getActiveTab(floating.pane).viewType === "sidebar"}>
-                  <SidebarPlaceholder />
-                </Match>
-                <Match when={getActiveTab(floating.pane).viewType === "orchestrator"}>
-                  <OrchestratorPlaceholder />
+                <Match when={getActiveTab(floating.pane).viewType === "plan"}>
+                  <PlanView paneId={floating.pane.id} isActive={isActive()} />
                 </Match>
               </Switch>
             </box>
@@ -511,34 +483,40 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
 
   const icon = createMemo(() => {
     const icons: Record<PaneViewType, string> = {
+      home: "󰋜",
       chat: "󰭻",
       afs: "󰉋",
       tom: "󰘨",
       metrics: "󰄪",
       agents: "󰀏",
       outcomes: "󰄩",
-      diff: "󰦓",
       todo: "󰄬",
-      sidebar: "󰕰",
-      orchestrator: "󰑣",
+      messages: "󰍡",
+      cognitive: "󰠭",
+      hivemind: "󰛶",
+      state: "󰈙",
+      plan: "󰙅",
     }
-    return icons[activeTab().viewType]
+    return icons[activeTab().viewType] || "󰈔"
   })
 
   const label = createMemo(() => {
     const labels: Record<PaneViewType, string> = {
+      home: "*home*",
       chat: "Chat",
       afs: "AFS",
       tom: "ToM",
       metrics: "Metrics",
       agents: "Agents",
       outcomes: "Outcomes",
-      diff: "Diff",
       todo: "Todo",
-      sidebar: "Sidebar",
-      orchestrator: "Orchestrator",
+      messages: "Messages",
+      cognitive: "Cognitive",
+      hivemind: "Hivemind",
+      state: "State",
+      plan: "Plan",
     }
-    return labels[activeTab().viewType]
+    return labels[activeTab().viewType] || activeTab().viewType
   })
 
   return (

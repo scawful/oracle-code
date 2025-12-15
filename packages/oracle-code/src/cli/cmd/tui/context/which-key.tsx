@@ -81,11 +81,15 @@ function executeAction(id: string): boolean {
  */
 function buildCommandTree(): WhichKeyNode[] {
   return [
+    // ============================================
+    // WINDOW MANAGEMENT (SPC w)
+    // ============================================
     {
       key: "w",
       label: "+window",
       isGroup: true,
       children: [
+        { key: "w", label: "cycle windows", action: "window.other" },
         { key: "/", label: "split vertical", action: "window.split.vertical" },
         { key: "-", label: "split horizontal", action: "window.split.horizontal" },
         { key: "d", label: "close pane", action: "window.close" },
@@ -96,64 +100,97 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "l", label: "focus right", action: "window.focus.right" },
         { key: "=", label: "balance", action: "window.balance" },
         { key: "o", label: "only (close others)", action: "window.only" },
-        // History navigation
         { key: "TAB", label: "cycle panes", action: "window.cycle" },
         { key: "p", label: "previous pane", action: "window.previous" },
-        // Resize
         { key: ">", label: "grow pane", action: "window.grow" },
         { key: "<", label: "shrink pane", action: "window.shrink" },
-        // Presets
         { key: "1", label: "single pane", action: "window.preset.single" },
         { key: "2", label: "dual panes", action: "window.preset.dual" },
         { key: "3", label: "triple panes", action: "window.preset.triple" },
         { key: "4", label: "quad panes", action: "window.preset.quad" },
-        // Floating
         { key: "f", label: "float/dock", action: "window.float" },
-        { key: "F", label: "close float", action: "window.float.close" },
-        // Subagent lanes
-        { key: "s", label: "toggle subagent panes", action: "window.lanes.toggle" },
-        { key: "c", label: "toggle subagent auto-close", action: "window.lanes.autoclose.toggle" },
+        {
+          key: "s",
+          label: "+subagent",
+          isGroup: true,
+          children: [
+            { key: "t", label: "toggle lanes", action: "window.lanes.toggle" },
+            { key: "c", label: "toggle auto-close", action: "window.lanes.autoclose.toggle" },
+            { key: "f", label: "close floating", action: "window.float.close" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // BUFFER MANAGEMENT (SPC b)
+    // ============================================
     {
       key: "b",
       label: "+buffer",
       isGroup: true,
       children: [
-        { key: "c", label: "chat", action: "buffer.chat" },
-        { key: "a", label: "AFS browser", action: "buffer.afs" },
-        { key: "t", label: "ToM panel", action: "buffer.tom" },
-        { key: "m", label: "metrics", action: "buffer.metrics" },
-        { key: "g", label: "agents", action: "buffer.agents" },
-        { key: "u", label: "outcomes", action: "buffer.outcomes" },
-        { key: "d", label: "diff view", action: "buffer.diff" },
-        { key: "o", label: "todo", action: "buffer.todo" },
-        { key: "s", label: "sidebar", action: "buffer.sidebar" },
-        { key: "O", label: "orchestrator", action: "buffer.orchestrator" },
+        { key: "b", label: "buffer list", action: "buffer.list" },
+        { key: "d", label: "kill buffer", action: "buffer.kill" },
+        { key: "n", label: "next buffer", action: "tab.next" },
+        { key: "p", label: "prev buffer", action: "tab.prev" },
+        {
+          key: "v",
+          label: "+view",
+          isGroup: true,
+          children: [
+            { key: "h", label: "*home*", action: "buffer.home" },
+            { key: "c", label: "chat/session", action: "buffer.chat" },
+            { key: "a", label: "AFS browser", action: "buffer.afs" },
+            { key: "m", label: "*Messages*", action: "buffer.messages" },
+            { key: "t", label: "todo", action: "buffer.todo" },
+            { key: "o", label: "outcomes", action: "buffer.outcomes" },
+            { key: "g", label: "agents", action: "buffer.agents" },
+            { key: "C", label: "cognitive", action: "buffer.cognitive" },
+            { key: "H", label: "hivemind", action: "buffer.hivemind" },
+            { key: "s", label: "state", action: "buffer.state" },
+            { key: "p", label: "plan", action: "buffer.plan" },
+            { key: "T", label: "ToM", action: "buffer.tom" },
+            { key: "M", label: "metrics", action: "buffer.metrics" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // TAB MANAGEMENT (SPC t)
+    // ============================================
     {
       key: "t",
       label: "+tab",
       isGroup: true,
       children: [
-        { key: "n", label: "new tab", action: "tab.new" },
+        { key: "n", label: "new tab (session)", action: "tab.new" },
+        { key: "h", label: "new *home*", action: "tab.new.home" },
         { key: "a", label: "new AFS", action: "tab.new.afs" },
-        { key: "t", label: "new ToM", action: "tab.new.tom" },
-        { key: "m", label: "new metrics", action: "tab.new.metrics" },
-        { key: "g", label: "new agents", action: "tab.new.agents" },
         { key: "d", label: "close tab", action: "tab.close" },
         { key: "l", label: "next tab", action: "tab.next" },
-        { key: "h", label: "prev tab", action: "tab.prev" },
-        { key: ">", label: "move right", action: "tab.move.right" },
-        { key: "<", label: "move left", action: "tab.move.left" },
+        { key: "k", label: "prev tab", action: "tab.prev" },
         { key: "1", label: "tab 1", action: "tab.1" },
         { key: "2", label: "tab 2", action: "tab.2" },
         { key: "3", label: "tab 3", action: "tab.3" },
         { key: "4", label: "tab 4", action: "tab.4" },
         { key: "5", label: "tab 5", action: "tab.5" },
+        {
+          key: "m",
+          label: "+move",
+          isGroup: true,
+          children: [
+            { key: "l", label: "move right", action: "tab.move.right" },
+            { key: "h", label: "move left", action: "tab.move.left" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // SESSION MANAGEMENT (SPC s)
+    // ============================================
     {
       key: "s",
       label: "+session",
@@ -163,32 +200,51 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "l", label: "list", keybind: "session_list" },
         { key: "e", label: "export", keybind: "session_export" },
         { key: "c", label: "compact", keybind: "session_compact" },
-        { key: "t", label: "timeline", keybind: "session_timeline" },
+        { key: "t", label: "tree view", action: "session.tree" },
         { key: "r", label: "rename", action: "session.rename" },
-        { key: "T", label: "tree", action: "session.tree" },
-        { key: "h", label: "share", keybind: "session_share" },
-        { key: "H", label: "unshare", keybind: "session_unshare" },
+        { key: "i", label: "timeline", keybind: "session_timeline" },
+        {
+          key: "s",
+          label: "+share",
+          isGroup: true,
+          children: [
+            { key: "s", label: "share session", keybind: "session_share" },
+            { key: "u", label: "unshare session", keybind: "session_unshare" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // AGENT MANAGEMENT (SPC a)
+    // ============================================
     {
       key: "a",
-      label: "+agent/analysis",
+      label: "+agent",
       isGroup: true,
       children: [
-        // Agent management
         { key: "a", label: "agent list", keybind: "agent_list" },
         { key: "n", label: "next agent", keybind: "agent_cycle" },
         { key: "p", label: "prev agent", keybind: "agent_cycle_reverse" },
         { key: "s", label: "agent status", action: "agent.status" },
-        // Analysis modes
-        { key: "t", label: "ToM analysis", action: "analysis.tom" },
-        { key: "m", label: "metrics analysis", action: "analysis.metrics" },
-        { key: "e", label: "eval analysis", action: "analysis.eval" },
-        { key: "c", label: "critic analysis", action: "analysis.critic" },
-        { key: "E", label: "emotional analysis", action: "analysis.emotional" },
-        { key: "g", label: "analysis gate", action: "analysis.gate" },
+        {
+          key: "r",
+          label: "+run (spawn)",
+          isGroup: true,
+          children: [
+            { key: "e", label: "@explore", action: "agent.spawn.explore" },
+            { key: "c", label: "@critic", action: "agent.spawn.critic" },
+            { key: "g", label: "@general", action: "agent.spawn.general" },
+            { key: "t", label: "@test", action: "agent.spawn.test" },
+            { key: "s", label: "@security", action: "agent.spawn.security" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // MODEL MANAGEMENT (SPC m)
+    // ============================================
     {
       key: "m",
       label: "+model",
@@ -199,87 +255,127 @@ function buildCommandTree(): WhichKeyNode[] {
         { key: "p", label: "prev", keybind: "model_cycle_recent_reverse" },
       ],
     },
+
+    // ============================================
+    // COGNITIVE/ANALYSIS (SPC c)
+    // ============================================
     {
       key: "c",
       label: "+cognitive",
       isGroup: true,
       children: [
-        { key: "s", label: "status", action: "cognitive.status" },
-        { key: "e", label: "emotions", action: "cognitive.emotions" },
-        { key: "m", label: "set mood", action: "cognitive.mood.set" },
-        { key: "M", label: "mood history", action: "cognitive.mood.history" },
-        { key: "k", label: "knowledge", action: "cognitive.knowledge" },
-        { key: "g", label: "goals", action: "cognitive.goals" },
-        { key: "S", label: "strategy", action: "cognitive.strategy" },
-        { key: "r", label: "+record", isGroup: true, children: [
-          { key: "f", label: "fear", action: "cognitive.record.fear" },
-          { key: "s", label: "satisfaction", action: "cognitive.record.satisfaction" },
-          { key: "c", label: "curiosity", action: "cognitive.record.curiosity" },
-          { key: "x", label: "frustration", action: "cognitive.record.frustration" },
-        ]},
-        { key: "a", label: "+analysis triggers", isGroup: true, children: [
-          { key: "l", label: "list triggers", action: "cognitive.triggers.list" },
-          { key: "g", label: "gate mode", action: "cognitive.triggers.gate" },
-          { key: "p", label: "pending", action: "cognitive.triggers.pending" },
-        ]},
-        { key: "h", label: "+hivemind", isGroup: true, children: [
-          { key: "h", label: "dashboard", action: "hivemind.dashboard" },
-          { key: "f", label: "fears", action: "hivemind.fears" },
-          { key: "s", label: "satisfactions", action: "hivemind.satisfactions" },
-          { key: "k", label: "knowledge", action: "hivemind.knowledge" },
-          { key: "d", label: "decisions", action: "hivemind.decisions" },
-          { key: "p", label: "preferences", action: "hivemind.preferences" },
-          { key: "c", label: "councils", action: "hivemind.councils" },
-          { key: "r", label: "refresh", action: "hivemind.refresh" },
-        ]},
-        { key: "o", label: "+outcomes", isGroup: true, children: [
-          { key: "i", label: "toast issues", action: "outcomes.toast_chain_issues.toggle" },
-          { key: "s", label: "toast success", action: "outcomes.toast_chain_success.toggle" },
-          { key: "I", label: "record issues", action: "outcomes.record_chain_issues.toggle" },
-          { key: "S", label: "record success", action: "outcomes.record_chain_success.toggle" },
-        ]},
+        { key: "c", label: "cognitive view", action: "buffer.cognitive" },
+        { key: "h", label: "hivemind", action: "buffer.hivemind" },
+        { key: "s", label: "state", action: "buffer.state" },
+        { key: "p", label: "plan", action: "buffer.plan" },
+        { key: "t", label: "ToM", action: "buffer.tom" },
+        {
+          key: "a",
+          label: "+analysis",
+          isGroup: true,
+          children: [
+            { key: "t", label: "ToM analysis", action: "analysis.tom" },
+            { key: "m", label: "metrics analysis", action: "analysis.metrics" },
+            { key: "e", label: "eval analysis", action: "analysis.eval" },
+            { key: "c", label: "critic analysis", action: "analysis.critic" },
+            { key: "o", label: "emotional analysis", action: "analysis.emotional" },
+            { key: "g", label: "analysis gate", action: "analysis.gate" },
+          ],
+        },
       ],
     },
+
+    // ============================================
+    // LAYOUT/WORKSPACE (SPC l) - was SPC W
+    // ============================================
     {
-      key: "g",
-      label: "+git",
-      isGroup: true,
-      children: [
-        { key: "s", label: "status", action: "git.status" },
-        { key: "d", label: "diff", action: "git.diff" },
-        { key: "l", label: "log", action: "git.log" },
-      ],
-    },
-    {
-      key: "f",
-      label: "+file",
-      isGroup: true,
-      children: [
-        { key: "f", label: "find file", action: "file.find" },
-        { key: "r", label: "recent", action: "file.recent" },
-        { key: "s", label: "save", action: "file.save" },
-      ],
-    },
-    {
-      key: "W",
-      label: "+workspace",
+      key: "l",
+      label: "+layout",
       isGroup: true,
       children: [
         { key: "s", label: "save workspace", keybind: "workspace_save" },
         { key: "l", label: "load workspace", keybind: "workspace_load" },
         { key: "d", label: "delete workspace", keybind: "workspace_delete" },
         { key: "r", label: "rename workspace", keybind: "workspace_rename" },
-        { key: "L", label: "list workspaces", keybind: "workspace_list" },
+        { key: "w", label: "list workspaces", keybind: "workspace_list" },
         { key: "1", label: "workspace 1", action: "workspace.1" },
         { key: "2", label: "workspace 2", action: "workspace.2" },
         { key: "3", label: "workspace 3", action: "workspace.3" },
         { key: "4", label: "workspace 4", action: "workspace.4" },
       ],
     },
-    // Direct commands (no submenu)
-    { key: "p", label: "commands", keybind: "command_list" },
-    { key: "T", label: "themes", keybind: "theme_list" },
-    { key: "S", label: "status", keybind: "status_view" },
+
+    // ============================================
+    // OUTCOMES/OPTIONS (SPC o)
+    // ============================================
+    {
+      key: "o",
+      label: "+outcomes",
+      isGroup: true,
+      children: [
+        { key: "o", label: "outcomes view", action: "buffer.outcomes" },
+        {
+          key: "t",
+          label: "+toast",
+          isGroup: true,
+          children: [
+            { key: "i", label: "toggle issue toasts", action: "outcomes.toast_chain_issues.toggle" },
+            { key: "s", label: "toggle success toasts", action: "outcomes.toast_chain_success.toggle" },
+          ],
+        },
+        {
+          key: "r",
+          label: "+record",
+          isGroup: true,
+          children: [
+            { key: "i", label: "toggle record issues", action: "outcomes.record_chain_issues.toggle" },
+            { key: "s", label: "toggle record success", action: "outcomes.record_chain_success.toggle" },
+          ],
+        },
+      ],
+    },
+
+    // ============================================
+    // GO/NAVIGATION (SPC g) - quick jumps
+    // ============================================
+    {
+      key: "g",
+      label: "+go",
+      isGroup: true,
+      children: [
+        { key: "h", label: "home", action: "buffer.home" },
+        { key: "s", label: "sidebar toggle (right)", action: "sidebar.toggle.right" },
+        { key: "S", label: "sidebar toggle (left)", action: "sidebar.toggle.left" },
+        { key: "m", label: "metrics", action: "buffer.metrics" },
+        { key: "c", label: "cognitive", action: "buffer.cognitive" },
+        { key: "a", label: "agents", action: "buffer.agents" },
+        { key: "t", label: "todo", action: "buffer.todo" },
+        { key: "p", label: "plan", action: "buffer.plan" },
+        { key: "o", label: "outcomes", action: "buffer.outcomes" },
+        { key: "v", label: "status view", keybind: "status_view" },
+      ],
+    },
+
+    // ============================================
+    // FILES (SPC f) - file operations
+    // ============================================
+    {
+      key: "f",
+      label: "+files",
+      isGroup: true,
+      children: [
+        { key: "f", label: "find file", action: "file.find" },
+        { key: "a", label: "AFS browser", action: "buffer.afs" },
+        { key: "r", label: "recent files", action: "file.recent" },
+        { key: "s", label: "save", action: "file.save" },
+        { key: "d", label: "diff view", action: "file.diff" },
+      ],
+    },
+
+    // ============================================
+    // DIRECT COMMANDS (top-level, no submenu)
+    // ============================================
+    { key: "p", label: "commands (M-x)", keybind: "command_list" },
     { key: "e", label: "editor", keybind: "editor_open" },
     { key: "q", label: "quit", keybind: "app_exit" },
     { key: "?", label: "help", action: "help.show" },

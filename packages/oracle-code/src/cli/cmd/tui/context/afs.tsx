@@ -29,9 +29,17 @@ export const { use: useAFS, provider: AFSProvider } = createSimpleContext({
 
     async function refresh() {
       try {
-        // Use the directory from sync context if available, otherwise fall back to default
-        const startDir = sync.data.path.directory || sync.data.path.worktree || undefined
-        const status = await AFS.getStatus(startDir ? await AFS.findRoot(startDir) ?? undefined : undefined)
+        // Wait for sync to complete before trying to find AFS root
+        // This ensures we have the correct working directory
+        // Access sync.data.status directly (not via getter) for consistency
+        if (sync.data.status !== "complete") {
+          return
+        }
+        
+        // Use the directory from sync context if available, otherwise fall back to cwd
+        const startDir = sync.data.path.directory || sync.data.path.worktree || process.cwd()
+        const afsRoot = await AFS.findRoot(startDir)
+        const status = await AFS.getStatus(afsRoot ?? undefined)
         const plan = status.exists ? await AFS.readPlan(status.root) : null
 
         setStore({
@@ -59,9 +67,16 @@ export const { use: useAFS, provider: AFSProvider } = createSimpleContext({
       refresh()
     })
 
-    // Re-refresh when path becomes available from sync
+    // Re-refresh when sync completes and path becomes available
+    // Access store.status directly (not via getter) to ensure Solid tracks the dependency
     createEffect(() => {
-      if (sync.data.path.directory || sync.data.path.worktree) {
+      // Access sync data directly to ensure Solid tracks dependencies
+      const status = sync.data.status
+      const dir = sync.data.path.directory
+      const worktree = sync.data.path.worktree
+      
+      // Only refresh if sync is complete and we have a non-empty path
+      if (status === "complete" && (dir || worktree)) {
         refresh()
       }
     })

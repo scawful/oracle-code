@@ -9,6 +9,7 @@ import { useDialog } from "../../ui/dialog"
 import { useKeyboardMode } from "../../context/keyboard-mode"
 import { useRenderer } from "@opentui/solid"
 import { usePanes } from "../../context/panes"
+import { usePromptRef } from "../../context/prompt"
 
 /**
  * AFSView - AFS browser pane view
@@ -48,9 +49,12 @@ export function AFSView(props: AFSViewProps) {
   const keyboard = useKeyboardMode()
   const renderer = useRenderer()
   const panes = usePanes()
+  const promptRef = usePromptRef()
   const ownerId = `afs-view:${props.paneId}`
   const isPaneActive = createMemo(() => panes.activeId === props.paneId)
-  const isActive = createMemo(() => (props.isActive ?? isPaneActive()))
+  const isActive = createMemo(() => props.isActive ?? isPaneActive())
+  // Don't capture keyboard if prompt is focused (let user type in chat)
+  const promptFocused = createMemo(() => promptRef.current?.focused ?? false)
 
   function focusPane() {
     panes.setActive(props.paneId)
@@ -89,11 +93,11 @@ export function AFSView(props: AFSViewProps) {
     }
   })
 
-  // Acquire/release keyboard ownership when this pane is active.
+  // Acquire/release keyboard ownership when this pane is active AND prompt is not focused.
   // This allows vim-style navigation without fighting the main prompt input.
   let ownsKeyboard = false
   createEffect(() => {
-    const shouldOwn = isActive() && dialog.stack.length === 0
+    const shouldOwn = isActive() && dialog.stack.length === 0 && !promptFocused()
 
     if (shouldOwn && !ownsKeyboard) {
       ownsKeyboard = true
@@ -208,7 +212,23 @@ export function AFSView(props: AFSViewProps) {
       }
 
       const ext = path.extname(filePath).toLowerCase()
-      const textExts = [".md", ".txt", ".json", ".ts", ".js", ".tsx", ".jsx", ".py", ".sh", ".yaml", ".yml", ".toml", ".xml", ".html", ".css"]
+      const textExts = [
+        ".md",
+        ".txt",
+        ".json",
+        ".ts",
+        ".js",
+        ".tsx",
+        ".jsx",
+        ".py",
+        ".sh",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".xml",
+        ".html",
+        ".css",
+      ]
       const isBinary = !textExts.includes(ext) && size > 0
 
       if (isBinary) {
@@ -518,13 +538,8 @@ export function AFSView(props: AFSViewProps) {
                   >
                     <text fg={theme.textMuted}>{indent}</text>
                     <Show when={item.type === "directory" && item.depth === 0}>
-                      <text fg={isSelected() ? theme.text : theme.textMuted}>
-                        {expanded[item.name] ? "▼" : "▶"}
-                      </text>
-                      <text
-                        fg={getDirColor(item.name)}
-                        attributes={isSelected() ? TextAttributes.BOLD : undefined}
-                      >
+                      <text fg={isSelected() ? theme.text : theme.textMuted}>{expanded[item.name] ? "▼" : "▶"}</text>
+                      <text fg={getDirColor(item.name)} attributes={isSelected() ? TextAttributes.BOLD : undefined}>
                         {item.name}/
                       </text>
                       <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -532,9 +547,7 @@ export function AFSView(props: AFSViewProps) {
                       </text>
                     </Show>
                     <Show when={item.type === "directory" && item.depth > 0}>
-                      <text fg={isSelected() ? theme.text : theme.textMuted}>
-                        {expanded[item.path] ? "▼" : "▶"}
-                      </text>
+                      <text fg={isSelected() ? theme.text : theme.textMuted}>{expanded[item.path] ? "▼" : "▶"}</text>
                       <text fg={isSelected() ? theme.info : theme.textMuted}>📁</text>
                       <text
                         fg={isSelected() ? theme.text : theme.textMuted}
@@ -615,14 +628,20 @@ export function AFSView(props: AFSViewProps) {
           <Show when={fileError()}>
             <box flexGrow={1} justifyContent="center" alignItems="center">
               <text fg={theme.error}>Error: {fileError()}</text>
-              <text fg={theme.textMuted} marginTop={1}>Press h to go back</text>
+              <text fg={theme.textMuted} marginTop={1}>
+                Press h to go back
+              </text>
             </box>
           </Show>
 
           <Show when={!fileError()}>
             <scrollbox flexGrow={1} paddingLeft={1} paddingRight={1}>
               <Show when={fileViewMode() === "hex"}>
-                <For each={fileContent().split("\n").slice(scrollOffset(), scrollOffset() + 30)}>
+                <For
+                  each={fileContent()
+                    .split("\n")
+                    .slice(scrollOffset(), scrollOffset() + 30)}
+                >
                   {(line) => (
                     <text fg={theme.text}>
                       <span style={{ fg: theme.warning }}>{line.slice(0, 10)}</span>
@@ -634,7 +653,11 @@ export function AFSView(props: AFSViewProps) {
               </Show>
 
               <Show when={fileViewMode() === "text"}>
-                <For each={fileContent().split("\n").slice(scrollOffset(), scrollOffset() + 30)}>
+                <For
+                  each={fileContent()
+                    .split("\n")
+                    .slice(scrollOffset(), scrollOffset() + 30)}
+                >
                   {(line, idx) => (
                     <text fg={theme.text} wrapMode="word">
                       <span style={{ fg: theme.textMuted }}>
@@ -647,7 +670,11 @@ export function AFSView(props: AFSViewProps) {
               </Show>
 
               <Show when={fileViewMode() === "markdown"}>
-                <For each={fileContent().split("\n").slice(scrollOffset(), scrollOffset() + 30)}>
+                <For
+                  each={fileContent()
+                    .split("\n")
+                    .slice(scrollOffset(), scrollOffset() + 30)}
+                >
                   {(line) => {
                     const isH1 = line.startsWith("# ")
                     const isH2 = line.startsWith("## ")

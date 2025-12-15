@@ -6,8 +6,12 @@ import { SplitBorder } from "../component/border"
 import { TextAttributes } from "@opentui/core"
 import z from "zod"
 import { TuiEvent } from "../event"
+import { useMessages, type MessageLevel } from "@tui/context/messages"
 
-export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties>
+export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties> & {
+  /** Optional source for messages buffer categorization */
+  source?: string
+}
 
 export function Toast() {
   const toast = useToast()
@@ -47,17 +51,36 @@ export function Toast() {
   )
 }
 
-function init() {
+function init(messages: ReturnType<typeof useMessages>) {
   const [store, setStore] = createStore({
     currentToast: null as ToastOptions | null,
   })
 
   let timeoutHandle: NodeJS.Timeout | null = null
 
+  // Map toast variant to message level
+  function variantToLevel(variant: string): MessageLevel {
+    switch (variant) {
+      case "error": return "error"
+      case "warning": return "warning"
+      case "success": return "success"
+      default: return "info"
+    }
+  }
+
   const toast = {
     show(options: ToastOptions) {
       const parsedOptions = TuiEvent.ToastShow.properties.parse(options)
-      const { duration, ...currentToast } = parsedOptions
+      const { duration, source, ...currentToast } = { ...parsedOptions, source: options.source }
+      
+      // Push to messages buffer
+      messages.add({
+        level: variantToLevel(currentToast.variant),
+        text: currentToast.message,
+        source: source || "toast",
+      })
+      
+      // Show ephemeral toast
       setStore("currentToast", currentToast)
       if (timeoutHandle) clearTimeout(timeoutHandle)
       timeoutHandle = setTimeout(() => {
@@ -87,7 +110,8 @@ export type ToastContext = ReturnType<typeof init>
 const ctx = createContext<ToastContext>()
 
 export function ToastProvider(props: ParentProps) {
-  const value = init()
+  const messages = useMessages()
+  const value = init(messages)
   return <ctx.Provider value={value}>{props.children}</ctx.Provider>
 }
 

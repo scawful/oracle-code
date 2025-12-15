@@ -18,6 +18,7 @@ import { StateReadTool } from "./state-read"
 import { StateWriteTool } from "./state-write"
 import { HivemindReadTool } from "./hivemind-read"
 import { HivemindPromoteTool } from "./hivemind-promote"
+import { HivemindManageTool } from "./hivemind-manage"
 import { CouncilVoteTool } from "./council-vote"
 import { HivemindTransferTool } from "./hivemind-transfer"
 import { HistorySearchTool } from "./history-search"
@@ -118,6 +119,7 @@ export namespace ToolRegistry {
       StateWriteTool,
       HivemindReadTool,
       HivemindPromoteTool,
+      HivemindManageTool,
       CouncilVoteTool,
       HivemindTransferTool,
       HistorySearchTool,

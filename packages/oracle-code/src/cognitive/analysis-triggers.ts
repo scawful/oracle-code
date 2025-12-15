@@ -165,14 +165,14 @@ export namespace AnalysisTriggers {
         triggerName: z.string(),
         matchedConditions: z.array(z.string()),
         autoAccepted: z.boolean(),
-      })
+      }),
     ),
     TriggerUpdated: BusEvent.define(
       "analysis.trigger.updated",
       z.object({
         root: z.string(),
         triggerId: z.string(),
-      })
+      }),
     ),
   }
 
@@ -191,7 +191,8 @@ export namespace AnalysisTriggers {
         suggestion: {
           analysisMode: "critic",
           subagentType: "critic",
-          prompt: "Review recent actions - we appear to be spinning. Identify what's going wrong and suggest a different approach.",
+          prompt:
+            "Review recent actions - we appear to be spinning. Identify what's going wrong and suggest a different approach.",
         },
         autoAccept: false,
         priority: 100,
@@ -206,7 +207,8 @@ export namespace AnalysisTriggers {
         suggestion: {
           analysisMode: "critic",
           subagentType: "critic",
-          prompt: "Review recent code changes for potential issues - no tests have been run. Look for bugs, edge cases, and missing error handling.",
+          prompt:
+            "Review recent code changes for potential issues - no tests have been run. Look for bugs, edge cases, and missing error handling.",
           emotionToRecord: {
             category: "fear",
             intensity: 5,
@@ -246,7 +248,8 @@ export namespace AnalysisTriggers {
         suggestion: {
           analysisMode: "eval",
           subagentType: "general",
-          prompt: "Resolve contradictions in our understanding. Evaluate conflicting information and determine what's accurate.",
+          prompt:
+            "Resolve contradictions in our understanding. Evaluate conflicting information and determine what's accurate.",
         },
         autoAccept: false,
         priority: 90,
@@ -261,7 +264,8 @@ export namespace AnalysisTriggers {
         suggestion: {
           analysisMode: "critic",
           subagentType: "critic",
-          prompt: "Review current approach - anxiety levels suggest potential issues. Identify risks and suggest mitigations.",
+          prompt:
+            "Review current approach - anxiety levels suggest potential issues. Identify risks and suggest mitigations.",
         },
         autoAccept: false,
         priority: 70,
@@ -351,6 +355,91 @@ export namespace AnalysisTriggers {
         priority: 40,
         cooldownMinutes: 30,
       },
+      // Auto-spawn explore for research tasks
+      {
+        id: "auto-explore-unknowns",
+        name: "Auto Explore Unknowns",
+        description: "Automatically spawn explore agent when critical unknowns exist",
+        enabled: true,
+        conditions: { criticalUnknowns: 2, confidenceBelow: 40 },
+        suggestion: {
+          analysisMode: "eval",
+          subagentType: "explore",
+          prompt: "Multiple critical unknowns with low confidence. Research the codebase to fill knowledge gaps.",
+        },
+        autoAccept: true, // Auto-spawn for research
+        priority: 88,
+        cooldownMinutes: 15,
+      },
+      // Auto-spawn critic for risky edits
+      {
+        id: "auto-critic-risky-edits",
+        name: "Auto Critic Risky Edits",
+        description: "Automatically spawn critic for edits in critical files without tests",
+        enabled: true,
+        conditions: { consecutiveEditsWithoutTests: 5, anxietyAbove: 50 },
+        suggestion: {
+          analysisMode: "critic",
+          subagentType: "critic",
+          prompt: "Multiple untested edits with elevated anxiety. Review code for potential issues before continuing.",
+        },
+        autoAccept: true, // Auto-spawn to catch issues early
+        priority: 82,
+        cooldownMinutes: 20,
+      },
+      // Suggest security review for sensitive operations
+      {
+        id: "security-review",
+        name: "Security Review",
+        description: "Suggest security review when working with sensitive code",
+        enabled: true,
+        conditions: { newFileTerritory: true, unvalidatedAssumptions: 2 },
+        suggestion: {
+          analysisMode: "eval",
+          subagentType: "security",
+          prompt: "New territory with unvalidated assumptions. Consider security implications of proposed changes.",
+        },
+        autoAccept: false,
+        priority: 75,
+        cooldownMinutes: 30,
+      },
+      // Test agent for coverage gaps
+      {
+        id: "test-coverage-gap",
+        name: "Test Coverage Gap",
+        description: "Suggest test agent when changes lack test coverage",
+        enabled: true,
+        conditions: { consecutiveEditsWithoutTests: 4 },
+        suggestion: {
+          analysisMode: "eval",
+          subagentType: "test",
+          prompt: "Multiple file edits without tests. Spawn test agent to write tests for recent changes.",
+        },
+        autoAccept: false,
+        priority: 70,
+        cooldownMinutes: 25,
+      },
+      // Low confidence needs exploration
+      {
+        id: "low-confidence-explore",
+        name: "Low Confidence Exploration",
+        description: "Suggest exploration when confidence is very low",
+        enabled: true,
+        conditions: { confidenceBelow: 30 },
+        suggestion: {
+          analysisMode: "eval",
+          subagentType: "explore",
+          prompt: "Confidence is very low. Spawn explore agent to gather more information about the current task.",
+          emotionToRecord: {
+            category: "curiosity",
+            intensity: 5,
+            trigger: "Low confidence triggering exploration",
+          },
+        },
+        autoAccept: false,
+        priority: 68,
+        cooldownMinutes: 15,
+      },
     ]
   }
 
@@ -430,7 +519,7 @@ export namespace AnalysisTriggers {
   export async function updateTrigger(
     root: string,
     triggerId: string,
-    updates: Partial<Omit<AnalysisTrigger, "id">>
+    updates: Partial<Omit<AnalysisTrigger, "id">>,
   ): Promise<boolean> {
     const repo = await getOrCreate(root)
     const index = repo.triggers.findIndex((t) => t.id === triggerId)
@@ -459,10 +548,7 @@ export namespace AnalysisTriggers {
   /**
    * Add a custom trigger
    */
-  export async function addTrigger(
-    root: string,
-    trigger: Omit<AnalysisTrigger, "id">
-  ): Promise<AnalysisTrigger> {
+  export async function addTrigger(root: string, trigger: Omit<AnalysisTrigger, "id">): Promise<AnalysisTrigger> {
     const repo = await getOrCreate(root)
     const newTrigger: AnalysisTrigger = {
       ...trigger,
@@ -498,22 +584,14 @@ export namespace AnalysisTriggers {
   /**
    * Set trigger cooldown
    */
-  export async function setCooldown(
-    root: string,
-    triggerId: string,
-    cooldownMinutes: number
-  ): Promise<boolean> {
+  export async function setCooldown(root: string, triggerId: string, cooldownMinutes: number): Promise<boolean> {
     return updateTrigger(root, triggerId, { cooldownMinutes })
   }
 
   /**
    * Set trigger auto-accept mode
    */
-  export async function setAutoAccept(
-    root: string,
-    triggerId: string,
-    autoAccept: boolean
-  ): Promise<boolean> {
+  export async function setAutoAccept(root: string, triggerId: string, autoAccept: boolean): Promise<boolean> {
     return updateTrigger(root, triggerId, { autoAccept })
   }
 
@@ -536,7 +614,7 @@ export namespace AnalysisTriggers {
    */
   function checkConditions(
     conditions: TriggerConditions,
-    state: CognitiveSnapshot
+    state: CognitiveSnapshot,
   ): { met: boolean; matched: string[] } {
     const matched: string[] = []
 
@@ -650,7 +728,7 @@ export namespace AnalysisTriggers {
 
     // All specified conditions must be matched
     const conditionCount = Object.keys(conditions).filter(
-      (k) => conditions[k as keyof TriggerConditions] !== undefined
+      (k) => conditions[k as keyof TriggerConditions] !== undefined,
     ).length
 
     return {
@@ -663,10 +741,7 @@ export namespace AnalysisTriggers {
    * Evaluate all triggers against current state
    * Returns triggered analyses sorted by priority
    */
-  export async function evaluateTriggers(
-    root: string,
-    state: CognitiveSnapshot
-  ): Promise<TriggeredAnalysis[]> {
+  export async function evaluateTriggers(root: string, state: CognitiveSnapshot): Promise<TriggeredAnalysis[]> {
     const repo = await getOrCreate(root)
     if (!repo.settings.globalEnabled) return []
 
@@ -699,7 +774,7 @@ export namespace AnalysisTriggers {
   export async function recordTriggerFired(
     root: string,
     triggerId: string,
-    autoAccepted: boolean = false
+    autoAccepted: boolean = false,
   ): Promise<void> {
     const repo = await getOrCreate(root)
     const trigger = repo.triggers.find((t) => t.id === triggerId)
@@ -724,9 +799,7 @@ export namespace AnalysisTriggers {
   /**
    * Count consecutive failures in recent actions
    */
-  export function countConsecutiveFailures(
-    recentActions: Array<{ success: boolean }>
-  ): number {
+  export function countConsecutiveFailures(recentActions: Array<{ success: boolean }>): number {
     let count = 0
     for (let i = recentActions.length - 1; i >= 0; i--) {
       if (!recentActions[i].success) {
@@ -741,9 +814,7 @@ export namespace AnalysisTriggers {
   /**
    * Count consecutive edits without test runs
    */
-  export function countEditsWithoutTests(
-    recentActions: Array<{ tool: string; success: boolean }>
-  ): number {
+  export function countEditsWithoutTests(recentActions: Array<{ tool: string; success: boolean }>): number {
     let editCount = 0
     for (let i = recentActions.length - 1; i >= 0; i--) {
       const action = recentActions[i]
@@ -763,22 +834,15 @@ export namespace AnalysisTriggers {
   /**
    * Check if current file is in known files list
    */
-  export function isNewFileTerritory(
-    currentFile: string | undefined,
-    knownFiles: string[]
-  ): boolean {
+  export function isNewFileTerritory(currentFile: string | undefined, knownFiles: string[]): boolean {
     if (!currentFile) return false
-    return !knownFiles.some(
-      (known) => currentFile.includes(known) || known.includes(currentFile)
-    )
+    return !knownFiles.some((known) => currentFile.includes(known) || known.includes(currentFile))
   }
 
   /**
    * Count how many times the same tool was used consecutively
    */
-  export function countSameToolRepeated(
-    recentActions: Array<{ tool: string }>
-  ): number {
+  export function countSameToolRepeated(recentActions: Array<{ tool: string }>): number {
     if (recentActions.length === 0) return 0
 
     const lastTool = recentActions[recentActions.length - 1].tool
@@ -810,10 +874,7 @@ export namespace AnalysisTriggers {
   /**
    * Update trigger settings
    */
-  export async function updateSettings(
-    root: string,
-    updates: Partial<TriggerRepository["settings"]>
-  ): Promise<void> {
+  export async function updateSettings(root: string, updates: Partial<TriggerRepository["settings"]>): Promise<void> {
     const repo = await getOrCreate(root)
     repo.settings = { ...repo.settings, ...updates }
     await write(root, repo)

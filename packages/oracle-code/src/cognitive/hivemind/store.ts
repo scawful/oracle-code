@@ -26,6 +26,7 @@ import {
   CouncilSession,
   categoryToArrayKey,
   type CategoryArrayKey,
+  GlobalFilter,
 } from "./types"
 
 export namespace HivemindStore {
@@ -36,7 +37,9 @@ export namespace HivemindStore {
   // =============
 
   const HIVEMIND_DIR = "hivemind"
-  const GLOBAL_HIVEMIND_DIR = ".config/oracle-code/global-hivemind"
+  // Global hivemind now uses ~/.context/hivemind/ to align with AFS structure
+  // This enables cross-tool compatibility (oracle-code, hafs, etc.)
+  const GLOBAL_HIVEMIND_DIR = ".context/hivemind"
 
   const FILES = {
     fears: "fears.json",
@@ -445,6 +448,346 @@ export namespace HivemindStore {
   ): Promise<HivemindManifest> {
     const state = await getState(contextRoot, scope)
     return state.manifest
+  }
+
+  /**
+   * Get an entry by key (instead of ID)
+   */
+  export async function getEntryByKey(
+    key: string,
+    contextRoot?: string,
+    scope?: HivemindScope
+  ): Promise<HivemindEntry | null> {
+    const scopes: HivemindScope[] = scope ? [scope] : ["project", "global"]
+
+    for (const s of scopes) {
+      try {
+        const state = await getState(contextRoot, s)
+        for (const arrayKey of Object.values(categoryToArrayKey)) {
+          const entry = state[arrayKey].find((e) => e.key === key)
+          if (entry) return entry
+        }
+      } catch {
+        // Scope not available
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Find potential duplicate entries based on key similarity
+   */
+  export async function findDuplicates(
+    contextRoot?: string,
+    options: {
+      scope?: HivemindScope
+      threshold?: number // Similarity threshold 0-1, default 0.7
+    } = {}
+  ): Promise<Array<{ entries: HivemindEntry[]; reason: string }>> {
+    const threshold = options.threshold ?? 0.7
+    const duplicateGroups: Array<{ entries: HivemindEntry[]; reason: string }> = []
+
+    // Collect all entries
+    const allEntries: HivemindEntry[] = []
+    
+    if (!options.scope || options.scope === "project") {
+      const projectState = await getState(contextRoot, "project")
+      for (const arrayKey of Object.values(categoryToArrayKey)) {
+        allEntries.push(...projectState[arrayKey])
+      }
+    }
+
+    if (!options.scope || options.scope === "global") {
+      try {
+        const globalState = await getState(undefined, "global")
+        for (const arrayKey of Object.values(categoryToArrayKey)) {
+          allEntries.push(...globalState[arrayKey])
+        }
+      } catch {
+        // Global not available
+      }
+    }
+
+    // Simple key similarity check using Levenshtein-like comparison
+    const keyGroups = new Map<string, HivemindEntry[]>()
+    
+    for (const entry of allEntries) {
+      const normalizedKey = entry.key.toLowerCase().replace(/[_-]/g, "")
+      let foundGroup = false
+      
+      for (const [groupKey, group] of keyGroups.entries()) {
+        const similarity = calculateSimilarity(normalizedKey, groupKey)
+        if (similarity >= threshold) {
+          group.push(entry)
+          foundGroup = true
+          break
+        }
+      }
+      
+      if (!foundGroup) {
+        keyGroups.set(normalizedKey, [entry])
+      }
+    }
+
+    // Filter to groups with more than one entry
+    for (const [, group] of keyGroups.entries()) {
+      if (group.length > 1) {
+        duplicateGroups.push({
+          entries: group,
+          reason: `Similar keys: ${group.map(e => e.key).join(", ")}`,
+        })
+      }
+    }
+
+    // Also check for entries with overlapping tags
+    const tagGroups = new Map<string, HivemindEntry[]>()
+    for (const entry of allEntries) {
+      if (entry.metadata.tags && entry.metadata.tags.length > 0) {
+        const tagKey = entry.metadata.tags.sort().join(",")
+        if (!tagGroups.has(tagKey)) {
+          tagGroups.set(tagKey, [])
+        }
+        tagGroups.get(tagKey)!.push(entry)
+      }
+    }
+
+    for (const [tags, group] of tagGroups.entries()) {
+      if (group.length > 1 && !duplicateGroups.some(d => 
+        d.entries.every(e => group.includes(e))
+      )) {
+        duplicateGroups.push({
+          entries: group,
+          reason: `Same tags: [${tags}]`,
+        })
+      }
+    }
+
+    return duplicateGroups
+  }
+
+  /**
+   * Merge multiple entries into one
+   */
+  export async function mergeEntries(
+    sourceKeys: string[],
+    targetKey: string,
+    mergedValue: string,
+    options: {
+      category?: HivemindCategory
+      scope?: HivemindScope
+      tags?: string[]
+      reason?: string
+      contextRoot?: string
+    } = {}
+  ): Promise<{ merged: HivemindEntry; deleted: number }> {
+    const contextRoot = options.contextRoot
+
+    // Find all source entries
+    const sourceEntries: HivemindEntry[] = []
+    for (const key of sourceKeys) {
+      const entry = await getEntryByKey(key, contextRoot, options.scope)
+      if (entry) {
+        sourceEntries.push(entry)
+      }
+    }
+
+    if (sourceEntries.length === 0) {
+      throw new Error(`No entries found for keys: ${sourceKeys.join(", ")}`)
+    }
+
+    // Determine merged properties
+    const category = options.category || sourceEntries[0].category
+    const scope = options.scope || sourceEntries[0].scope
+    const highestConfidence = Math.max(...sourceEntries.map(e => e.confidence))
+    const isGolden = sourceEntries.some(e => e.status === "golden")
+    
+    // Merge tags from all sources
+    const allTags = new Set<string>()
+    for (const entry of sourceEntries) {
+      if (entry.metadata.tags) {
+        entry.metadata.tags.forEach(t => allTags.add(t))
+      }
+    }
+    if (options.tags) {
+      options.tags.forEach(t => allTags.add(t))
+    }
+
+    // Delete source entries
+    let deleted = 0
+    for (const entry of sourceEntries) {
+      const success = await removeEntry(entry.id, contextRoot)
+      if (success) deleted++
+    }
+
+    // Create merged entry
+    const merged = await addEntry({
+      category,
+      scope,
+      key: targetKey,
+      value: mergedValue,
+      confidence: highestConfidence,
+      status: isGolden ? "golden" : "active",
+      source: {
+        sessionId: sourceEntries[0].source.sessionId,
+        agentRole: "merge",
+        timestamp: new Date().toISOString(),
+        promotionReason: options.reason || `Merged from: ${sourceKeys.join(", ")}`,
+      },
+      decay: {
+        lastAccessed: new Date().toISOString(),
+        accessCount: sourceEntries.reduce((sum, e) => sum + e.decay.accessCount, 0),
+        decayRate: sourceEntries[0].decay.decayRate,
+      },
+      metadata: {
+        tags: Array.from(allTags),
+        relatedEntries: sourceEntries.map(e => e.id),
+      },
+      golden: isGolden ? {
+        promotedAt: new Date().toISOString(),
+        promotedBy: "user",
+      } : undefined,
+    }, contextRoot)
+
+    return { merged, deleted }
+  }
+
+  /**
+   * Apply global filter to entries
+   */
+  export function applyGlobalFilter(
+    entries: HivemindEntry[],
+    filter?: GlobalFilter
+  ): HivemindEntry[] {
+    if (!filter) return entries
+
+    return entries.filter(entry => {
+      // Check tag filters
+      if (filter.includeTags && filter.includeTags.length > 0) {
+        const entryTags = entry.metadata.tags || []
+        if (!filter.includeTags.some(t => entryTags.includes(t))) {
+          return false
+        }
+      }
+
+      if (filter.excludeTags && filter.excludeTags.length > 0) {
+        const entryTags = entry.metadata.tags || []
+        if (filter.excludeTags.some(t => entryTags.includes(t))) {
+          return false
+        }
+      }
+
+      // Check category filters
+      if (filter.includeCategories && filter.includeCategories.length > 0) {
+        if (!filter.includeCategories.includes(entry.category)) {
+          return false
+        }
+      }
+
+      if (filter.excludeCategories && filter.excludeCategories.length > 0) {
+        if (filter.excludeCategories.includes(entry.category)) {
+          return false
+        }
+      }
+
+      // Check key pattern filters
+      if (filter.includeKeys && filter.includeKeys.length > 0) {
+        if (!filter.includeKeys.some(pattern => 
+          entry.key.includes(pattern) || new RegExp(pattern, "i").test(entry.key)
+        )) {
+          return false
+        }
+      }
+
+      if (filter.excludeKeys && filter.excludeKeys.length > 0) {
+        if (filter.excludeKeys.some(pattern => 
+          entry.key.includes(pattern) || new RegExp(pattern, "i").test(entry.key)
+        )) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }
+
+  /**
+   * Get filtered global entries based on project manifest filter
+   */
+  export async function getFilteredGlobalEntries(
+    contextRoot?: string,
+    category?: HivemindCategory
+  ): Promise<HivemindEntry[]> {
+    const projectManifest = await getManifest(contextRoot, "project")
+    
+    if (!projectManifest.globalEnabled) {
+      return []
+    }
+
+    try {
+      const globalState = await getState(undefined, "global")
+      let entries: HivemindEntry[] = []
+
+      if (category) {
+        entries = globalState[categoryToArrayKey[category]]
+      } else {
+        for (const arrayKey of Object.values(categoryToArrayKey)) {
+          entries.push(...globalState[arrayKey])
+        }
+      }
+
+      return applyGlobalFilter(entries, projectManifest.globalFilter)
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Update global filter in manifest
+   */
+  export async function updateGlobalFilter(
+    filter: GlobalFilter,
+    contextRoot?: string
+  ): Promise<void> {
+    const dir = await getProjectRoot(contextRoot)
+    const manifestPath = path.join(dir, FILES.manifest)
+    const manifest = await readJsonFileSafe(
+      manifestPath,
+      (d) => parseManifest(d),
+      () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
+    )
+
+    manifest.globalFilter = filter
+    manifest.lastSync = new Date().toISOString()
+    await writeJsonFile(manifestPath, manifest)
+    Bus.publish(Event.Updated, { scope: "project" })
+  }
+
+  // Helper function for similarity calculation
+  function calculateSimilarity(a: string, b: string): number {
+    if (a === b) return 1
+    if (a.length === 0 || b.length === 0) return 0
+    
+    // Simple Jaccard similarity on character n-grams
+    const ngramSize = 2
+    const getNgrams = (s: string): Set<string> => {
+      const ngrams = new Set<string>()
+      for (let i = 0; i <= s.length - ngramSize; i++) {
+        ngrams.add(s.substring(i, i + ngramSize))
+      }
+      return ngrams
+    }
+
+    const ngramsA = getNgrams(a)
+    const ngramsB = getNgrams(b)
+    
+    let intersection = 0
+    for (const ngram of ngramsA) {
+      if (ngramsB.has(ngram)) intersection++
+    }
+    
+    const union = ngramsA.size + ngramsB.size - intersection
+    return union === 0 ? 0 : intersection / union
   }
 
   // =============

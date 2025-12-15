@@ -33,6 +33,7 @@ import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
+import { MessagesProvider, useMessages } from "./context/messages"
 import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
@@ -70,6 +71,8 @@ import {
   DialogWorkspaceList,
 } from "./component/dialog-workspace"
 import { DialogHivemind } from "./component/dialog-hivemind"
+import { DialogBufferList } from "./component/dialog-buffer-list"
+import { BufferProvider } from "./context/buffer"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -147,53 +150,57 @@ export function tui(input: { url: string; args: Args; onExit?: () => Promise<voi
             <ArgsProvider {...input.args}>
               <ExitProvider onExit={onExit}>
                 <KVProvider>
-                  <ToastProvider>
-                    <RouteProvider>
-                      <SDKProvider url={input.url}>
-                        <SyncProvider>
-                          <ThemeProvider mode={mode}>
-                            <LocalProvider>
-                              <AFSProvider>
-                                <AgentsProvider>
-                                  <MetricsProvider>
-                                    <ToMProvider>
-                                      <CognitiveProvider>
-                                      <AnalysisModeProvider>
-                                        <AnalysisGateProvider>
-                                        <OrchestrationProvider>
-                                        <KeybindProvider>
-                                          <WhichKeyProvider>
-                                            <PanesProvider>
-                                          <KeyboardModeProvider>
-                                      <DialogProvider>
-                                        <CommandProvider>
-                                          <PromptHistoryProvider>
-                                            <PromptRefProvider>
-                                              <WhichKeyConnector />
-                                              <CognitiveActionsConnector />
-                                              <App />
-                                            </PromptRefProvider>
-                                          </PromptHistoryProvider>
-                                        </CommandProvider>
-                                      </DialogProvider>
-                                          </KeyboardModeProvider>
-                                            </PanesProvider>
-                                          </WhichKeyProvider>
-                                        </KeybindProvider>
-                                        </OrchestrationProvider>
-                                        </AnalysisGateProvider>
-                                      </AnalysisModeProvider>
-                                      </CognitiveProvider>
-                                    </ToMProvider>
-                                  </MetricsProvider>
-                                </AgentsProvider>
-                              </AFSProvider>
-                            </LocalProvider>
-                          </ThemeProvider>
-                        </SyncProvider>
-                      </SDKProvider>
-                    </RouteProvider>
-                  </ToastProvider>
+                  <MessagesProvider>
+                    <ToastProvider>
+                      <RouteProvider>
+                        <SDKProvider url={input.url}>
+                          <SyncProvider>
+                            <BufferProvider>
+                              <ThemeProvider mode={mode}>
+                                <LocalProvider>
+                                  <AFSProvider>
+                                    <AgentsProvider>
+                                      <MetricsProvider>
+                                        <ToMProvider>
+                                          <CognitiveProvider>
+                                            <AnalysisModeProvider>
+                                              <AnalysisGateProvider>
+                                                <OrchestrationProvider>
+                                                  <KeybindProvider>
+                                                    <WhichKeyProvider>
+                                                      <PanesProvider>
+                                                        <KeyboardModeProvider>
+                                                          <DialogProvider>
+                                                            <CommandProvider>
+                                                              <PromptHistoryProvider>
+                                                                <PromptRefProvider>
+                                                                  <WhichKeyConnector />
+                                                                  <CognitiveActionsConnector />
+                                                                  <App />
+                                                                </PromptRefProvider>
+                                                              </PromptHistoryProvider>
+                                                            </CommandProvider>
+                                                          </DialogProvider>
+                                                        </KeyboardModeProvider>
+                                                      </PanesProvider>
+                                                    </WhichKeyProvider>
+                                                  </KeybindProvider>
+                                                </OrchestrationProvider>
+                                              </AnalysisGateProvider>
+                                            </AnalysisModeProvider>
+                                          </CognitiveProvider>
+                                        </ToMProvider>
+                                      </MetricsProvider>
+                                    </AgentsProvider>
+                                  </AFSProvider>
+                                </LocalProvider>
+                              </ThemeProvider>
+                            </BufferProvider>
+                          </SyncProvider>
+                        </SDKProvider>
+                      </RouteProvider>
+                    </ToastProvider>
+                  </MessagesProvider>
                 </KVProvider>
               </ExitProvider>
             </ArgsProvider>
@@ -219,6 +226,7 @@ function WhichKeyConnector() {
   const whichKey = useWhichKey()
   const command = useCommandDialog()
   const dialog = useDialog()
+  const toast = useToast()
 
   onMount(() => {
     // Wire up which-key to keybind
@@ -238,6 +246,11 @@ function WhichKeyConnector() {
     // Wire up which-key to command system for keybind triggers
     whichKey.setKeybindTrigger((key: string) => {
       command.trigger(key)
+    })
+
+    // Register Buffer which-key action handlers
+    whichKey.registerAction("buffer.list", () => {
+      dialog.replace(() => <DialogBufferList />)
     })
 
     // Register Hivemind which-key action handlers
@@ -265,6 +278,37 @@ function WhichKeyConnector() {
     whichKey.registerAction("hivemind.refresh", () => {
       // Refresh will be handled by the dialog itself when opened
       dialog.replace(() => <DialogHivemind />)
+    })
+
+    // Register File action handlers (placeholders for now)
+    whichKey.registerAction("file.find", () => {
+      // TODO: Implement file finder dialog
+      toast.show({ message: "File finder coming soon", variant: "info" })
+    })
+    whichKey.registerAction("file.recent", () => {
+      // TODO: Implement recent files dialog
+      toast.show({ message: "Recent files coming soon", variant: "info" })
+    })
+    whichKey.registerAction("file.save", () => {
+      // TODO: Implement save functionality
+      toast.show({ message: "Save coming soon", variant: "info" })
+    })
+    whichKey.registerAction("file.diff", () => {
+      // TODO: Implement diff view
+      toast.show({ message: "Diff view coming soon", variant: "info" })
+    })
+
+    // Register Session action handlers
+    whichKey.registerAction("session.tree", () => {
+      command.trigger("session.tree")
+    })
+    whichKey.registerAction("session.rename", () => {
+      command.trigger("session.rename")
+    })
+
+    // Register Agent action handlers
+    whichKey.registerAction("agent.status", () => {
+      command.trigger("agents.status")
     })
   })
 
@@ -883,6 +927,16 @@ function App() {
       category: "Hivemind",
       onSelect: () => {
         dialog.replace(() => <DialogHivemind initialTab="councils" />)
+      },
+    },
+    // Buffer commands
+    {
+      title: "Buffer list",
+      value: "buffer.list",
+      keybind: "buffer_list",
+      category: "Buffer",
+      onSelect: () => {
+        dialog.replace(() => <DialogBufferList />)
       },
     },
   ])

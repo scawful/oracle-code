@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
-import { createMemo, onMount, onCleanup } from "solid-js"
+import { createMemo, createEffect, onMount, onCleanup } from "solid-js"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
 import { ToM } from "@/tom"
@@ -230,6 +230,15 @@ export const { use: useToM, provider: ToMProvider } = createSimpleContext({
       onCleanup(() => {
         unsubs.forEach((unsub) => unsub())
       })
+    })
+
+    // React to sync.data.session changes - handles late data availability
+    // when loading existing sessions (sync.session.sync() populates data after mount)
+    createEffect(() => {
+      const sessions = sync.data.session
+      if (sessions && sessions.length > 0) {
+        refreshAll()
+      }
     })
 
     // Derived values

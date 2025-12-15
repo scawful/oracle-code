@@ -1585,6 +1585,10 @@ export namespace SlashCommand {
         confident: "🎯",
         frustrated: "😤",
         curious: "🤔",
+        excited: "✨",
+        determined: "💪",
+        cautious: "🔍",
+        relieved: "😌",
       }
 
       // Category emoji mapping
@@ -1593,6 +1597,10 @@ export namespace SlashCommand {
         curiosity: "🤔",
         satisfaction: "✓",
         frustration: "😤",
+        excitement: "✨",
+        determination: "💪",
+        caution: "🔍",
+        relief: "😌",
       }
 
       switch (action) {

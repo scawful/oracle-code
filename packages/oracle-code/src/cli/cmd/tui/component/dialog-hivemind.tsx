@@ -3,8 +3,8 @@ import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { useKeyboardMode, useKeyboardOwnership } from "../context/keyboard-mode"
+import { useAFS } from "../context/afs"
 import { HivemindStore, HivemindDecay, type HivemindEntry, type HivemindState } from "@/cognitive/hivemind"
-import { AFS } from "@/afs"
 
 type TabName = "overview" | "fears" | "satisfactions" | "knowledge" | "decisions" | "preferences" | "councils"
 
@@ -18,6 +18,7 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
   const { theme } = useTheme()
   const dialog = useDialog()
   const keyboard = useKeyboardMode()
+  const afs = useAFS()
 
   dialog.setSize("large")
 
@@ -25,23 +26,21 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
   const [cursorIndex, setCursorIndex] = createSignal(0)
   const [refreshTrigger, setRefreshTrigger] = createSignal(0)
 
-  // Load hivemind state
+  // Load hivemind state - use afs.root from context for proper path resolution
   const [hivemindState, { refetch }] = createResource(
-    () => refreshTrigger(),
-    async () => {
-      const root = await AFS.findRoot()
-      if (!root) return null
-      return HivemindStore.getState(root)
+    () => ({ trigger: refreshTrigger(), root: afs.root }),
+    async (source) => {
+      if (!source.root) return null
+      return HivemindStore.getState(source.root)
     }
   )
 
-  // Load decay warnings
+  // Load decay warnings - use afs.root from context
   const [decayWarnings] = createResource(
-    () => refreshTrigger(),
-    async () => {
-      const root = await AFS.findRoot()
-      if (!root) return []
-      return HivemindDecay.getDecayWarnings(root)
+    () => ({ trigger: refreshTrigger(), root: afs.root }),
+    async (source) => {
+      if (!source.root) return []
+      return HivemindDecay.getDecayWarnings(source.root)
     }
   )
 
@@ -223,11 +222,20 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
   )
 }
 
+// Default stats object for null safety
+const defaultStats = {
+  totalEntries: 0,
+  goldenCount: 0,
+  decayingCount: 0,
+  contestedCount: 0,
+  entriesByCategory: {} as Record<string, number>,
+}
+
 /**
  * Overview tab showing summary stats
  */
 function OverviewTab(props: { state: HivemindState; warnings: HivemindEntry[]; theme: any }) {
-  const stats = () => props.state.manifest.stats
+  const stats = () => props.state?.manifest?.stats ?? defaultStats
 
   return (
     <box>

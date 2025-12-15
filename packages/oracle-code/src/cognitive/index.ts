@@ -51,6 +51,14 @@ export { Emotions } from "./emotions"
 export { Hivemind, HivemindStore, HivemindDecay } from "./hivemind"
 export { AnalysisTriggers } from "./analysis-triggers"
 export { CognitiveIntegration } from "./integration"
+export { CognitiveInference } from "./inference"
+
+// New dynamic emotional system modules
+export { EmotionTriggers } from "./emotion-triggers"
+export { Grounding } from "./grounding"
+export { Autonomy } from "./autonomy"
+export { HistoricalMemory } from "./historical-memory"
+export { ProjectConfig } from "./project-config"
 
 // Re-export hivemind types for convenience
 export type {

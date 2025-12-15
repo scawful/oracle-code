@@ -57,7 +57,8 @@ function init() {
   const result = {
     trigger(name: string, source?: "prompt") {
       for (const option of options()) {
-        if (option.value === name) {
+        // Match by value or keybind name (for which-key integration)
+        if (option.value === name || option.keybind === name) {
           option.onSelect?.(dialog, source)
           return
         }

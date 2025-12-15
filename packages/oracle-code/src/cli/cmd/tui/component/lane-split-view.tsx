@@ -11,16 +11,16 @@ const log = Log.create({ service: "lane-split-view" })
 
 /**
  * Lane Split View Controller
- * 
+ *
  * Monitors for subagent spawns and automatically creates split views
  * to show the subagent's chat alongside the parent session.
- * 
+ *
  * Features:
  * - Auto-creates 60/40 split when subagent spawns
  * - Shows visual connection between parent and child
  * - Collapses when subagent completes
  * - Tracks multiple concurrent subagents
- * 
+ *
  * This component renders nothing - it just manages the pane splits
  * in response to subagent lifecycle events.
  */
@@ -44,7 +44,8 @@ export function LaneSplitViewController() {
   const [trackedSubagents, setTrackedSubagents] = createSignal<TrackedSubagent[]>([])
 
   // Settings for auto-split behavior
-  const [autoSplitEnabled] = kv.signal("tui.lanes.auto_split", true)
+  // Default to false - manual pane management is less confusing
+  const [autoSplitEnabled] = kv.signal("tui.lanes.auto_split", false)
   const [autoCollapseEnabled] = kv.signal("tui.lanes.auto_collapse", true)
   const [splitRatio] = kv.signal("tui.lanes.split_ratio", 0.6) // Main chat gets 60%
   const [collapseDelayMs] = kv.signal("tui.lanes.collapse_delay_ms", 2000)
@@ -98,11 +99,14 @@ export function LaneSplitViewController() {
       for (const subagent of completed) {
         log.info("subagent completed", { sessionId: subagent.sessionId })
         markSubagentCompleted(subagent.sessionId)
-        
+
         // Schedule pane collapse after a short delay (let user see result)
-        setTimeout(() => {
-          collapseSubagentPane(subagent.sessionId)
-        }, Math.max(0, collapseDelayMs()))
+        setTimeout(
+          () => {
+            collapseSubagentPane(subagent.sessionId)
+          },
+          Math.max(0, collapseDelayMs()),
+        )
       }
     }),
   )
@@ -157,11 +161,7 @@ export function LaneSplitViewController() {
 
   // Mark a subagent as completed
   function markSubagentCompleted(sessionId: string) {
-    setTrackedSubagents((prev) =>
-      prev.map((t) =>
-        t.sessionId === sessionId ? { ...t, completedAt: Date.now() } : t,
-      ),
-    )
+    setTrackedSubagents((prev) => prev.map((t) => (t.sessionId === sessionId ? { ...t, completedAt: Date.now() } : t)))
   }
 
   // Collapse a subagent's pane
@@ -223,7 +223,7 @@ export function LaneSplitViewController() {
 
 /**
  * Lane Indicator Component
- * 
+ *
  * Shows a visual indicator in the chat when viewing a subagent session,
  * displaying the connection to its parent session.
  */
@@ -260,9 +260,7 @@ export function LaneIndicator(props: { sessionId: string }) {
         flexShrink={0}
       >
         <text fg={theme.info}>◉</text>
-        <text fg={theme.textMuted}>
-          Subagent lane: @{agentType()}
-        </text>
+        <text fg={theme.textMuted}>Subagent lane: @{agentType()}</text>
         <Show when={parentSession()}>
           <text fg={theme.textMuted}>|</text>
           <text fg={theme.textMuted}>
@@ -291,7 +289,7 @@ export function useIsSubagentSession(sessionId: string) {
  */
 export function useSubagentInfo(sessionId: string) {
   const sync = useSync()
-  
+
   return createMemo(() => {
     const session = sync.session.get(sessionId)
     if (!session?.parentID) return null
