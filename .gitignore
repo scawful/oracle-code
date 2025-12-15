@@ -19,3 +19,7 @@ Session.vim
 opencode.json
 a.out
 target
+
+# Agent context and hivemind data (local)
+.context/
+hivemind/
