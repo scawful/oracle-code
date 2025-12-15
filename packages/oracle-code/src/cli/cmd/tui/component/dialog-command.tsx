@@ -162,6 +162,15 @@ export function CommandProvider(props: ParentProps) {
     if (value.suspended()) return
     if (dialog.stack.length > 0) return
     if (evt.defaultPrevented) return
+
+    // Direct check for Ctrl+P - most reliable
+    if (evt.ctrl && !evt.shift && !evt.meta && evt.name === "p") {
+      evt.preventDefault()
+      dialog.replace(() => <DialogCommand options={value.options} />)
+      return
+    }
+
+    // Also check via keybind system for <leader>p
     if (keybind.match("command_list", evt)) {
       evt.preventDefault()
       dialog.replace(() => <DialogCommand options={value.options} />)

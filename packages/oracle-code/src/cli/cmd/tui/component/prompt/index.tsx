@@ -694,13 +694,33 @@ export function Prompt(props: PromptProps) {
               }}
               keyBindings={textareaKeybindings()}
               onKeyDown={async (e) => {
-                // ALWAYS allow command palette keybind, even when keyboard is owned
-                // This ensures Ctrl+P works from anywhere
-                if (keybind.match("command_list", e)) {
+                // PRIORITY KEYBINDS: Handle these BEFORE any ownership checks
+                // These should always work regardless of keyboard mode
+
+                // Ctrl+P: Command palette
+                if (e.ctrl && e.name === "p") {
                   command.show()
                   e.preventDefault()
                   return
                 }
+
+                // Ctrl+C: Clear input (when input has content) or exit (when empty)
+                if (e.ctrl && e.name === "c") {
+                  const hasContent = store.prompt.input.length > 0 || store.prompt.parts.length > 0
+                  if (hasContent) {
+                    e.preventDefault()
+                    input.clear()
+                    input.extmarks.clear()
+                    setStore("prompt", {
+                      input: "",
+                      parts: [],
+                    })
+                    setStore("extmarkToPartIndex", new Map())
+                    return
+                  }
+                  // If no content, let it fall through to app_exit handling
+                }
+
                 // Skip if keyboard is owned by another component (e.g., AFS browser)
                 if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
                   // Don't consume keys while another component owns the keyboard
@@ -708,17 +728,6 @@ export function Prompt(props: PromptProps) {
                   try {
                     input.blur()
                   } catch {}
-                  return
-                }
-                if (keybind.match("input_clear", e)) {
-                  e.preventDefault()
-                  input.clear()
-                  input.extmarks.clear()
-                  setStore("prompt", {
-                    input: "",
-                    parts: [],
-                  })
-                  setStore("extmarkToPartIndex", new Map())
                   return
                 }
                 if (keybind.match("app_exit", e)) {
