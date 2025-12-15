@@ -5,6 +5,7 @@ import { useDirectory } from "../../context/directory"
 import { useConnected } from "../../component/dialog-model"
 import { createStore } from "solid-js/store"
 import { useRoute } from "../../context/route"
+import { useApprovalMode } from "../../context/approval-mode"
 
 export function Footer() {
   const { theme } = useTheme()
@@ -19,6 +20,7 @@ export function Footer() {
   })
   const directory = useDirectory()
   const connected = useConnected()
+  const approvalMode = useApprovalMode()
 
   const [store, setStore] = createStore({
     welcome: false,
@@ -63,6 +65,12 @@ export function Footer() {
                 {permissions().length > 1 ? "s" : ""}
               </text>
             </Show>
+            <text fg={theme.text}>
+              <span style={{ fg: theme[approvalMode.modeInfo.color as keyof typeof theme] ?? theme.textMuted }}>
+                {approvalMode.mode === "yolo" ? "!" : approvalMode.mode === "auto_edits" ? "✓" : "○"}
+              </span>{" "}
+              <span style={{ fg: theme.textMuted }}>{approvalMode.modeInfo.name}</span>
+            </text>
             <text fg={theme.text}>
               <span style={{ fg: theme.success }}>•</span> {lsp().length} LSP
             </text>

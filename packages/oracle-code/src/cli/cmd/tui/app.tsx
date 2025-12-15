@@ -52,6 +52,8 @@ import { DialogSessionTree } from "./component/dialog-session-tree"
 import { DialogAFSBrowser } from "./component/dialog-afs-browser"
 import { DialogAnalysisMode } from "./component/dialog-analysis-mode"
 import { AnalysisModeProvider, useAnalysisMode } from "./context/analysis-mode"
+import { ApprovalModeProvider, useApprovalMode } from "./context/approval-mode"
+import { ToolWhitelistProvider } from "./context/tool-whitelist"
 import { AnalysisGateProvider, useAnalysisGate } from "./context/analysis-gate"
 import { KeyboardModeProvider } from "./context/keyboard-mode"
 import { OrchestrationProvider } from "./context/orchestration"
@@ -163,31 +165,35 @@ export function tui(input: { url: string; args: Args; onExit?: () => Promise<voi
                                       <MetricsProvider>
                                         <ToMProvider>
                                           <CognitiveProvider>
-                                            <AnalysisModeProvider>
-                                              <AnalysisGateProvider>
-                                                <OrchestrationProvider>
-                                                  <KeybindProvider>
-                                                    <WhichKeyProvider>
-                                                      <PanesProvider>
-                                                        <KeyboardModeProvider>
-                                                          <DialogProvider>
-                                                            <CommandProvider>
-                                                              <PromptHistoryProvider>
-                                                                <PromptRefProvider>
-                                                                  <WhichKeyConnector />
-                                                                  <CognitiveActionsConnector />
-                                                                  <App />
-                                                                </PromptRefProvider>
-                                                              </PromptHistoryProvider>
-                                                            </CommandProvider>
-                                                          </DialogProvider>
-                                                        </KeyboardModeProvider>
-                                                      </PanesProvider>
-                                                    </WhichKeyProvider>
-                                                  </KeybindProvider>
-                                                </OrchestrationProvider>
-                                              </AnalysisGateProvider>
-                                            </AnalysisModeProvider>
+                                            <ApprovalModeProvider>
+                                              <ToolWhitelistProvider>
+                                                <AnalysisModeProvider>
+                                                  <AnalysisGateProvider>
+                                                    <OrchestrationProvider>
+                                                      <KeybindProvider>
+                                                        <WhichKeyProvider>
+                                                          <PanesProvider>
+                                                            <KeyboardModeProvider>
+                                                              <DialogProvider>
+                                                                <CommandProvider>
+                                                                  <PromptHistoryProvider>
+                                                                    <PromptRefProvider>
+                                                                      <WhichKeyConnector />
+                                                                      <CognitiveActionsConnector />
+                                                                      <App />
+                                                                    </PromptRefProvider>
+                                                                  </PromptHistoryProvider>
+                                                                </CommandProvider>
+                                                              </DialogProvider>
+                                                            </KeyboardModeProvider>
+                                                          </PanesProvider>
+                                                        </WhichKeyProvider>
+                                                      </KeybindProvider>
+                                                    </OrchestrationProvider>
+                                                  </AnalysisGateProvider>
+                                                </AnalysisModeProvider>
+                                              </ToolWhitelistProvider>
+                                            </ApprovalModeProvider>
                                           </CognitiveProvider>
                                         </ToMProvider>
                                       </MetricsProvider>
@@ -245,7 +251,12 @@ function WhichKeyConnector() {
 
     // Wire up which-key to command system for keybind triggers
     whichKey.setKeybindTrigger((key: string) => {
-      command.trigger(key)
+      // Special handling for command_list to directly show the command palette
+      if (key === "command_list") {
+        command.show()
+      } else {
+        command.trigger(key)
+      }
     })
 
     // Register Buffer which-key action handlers

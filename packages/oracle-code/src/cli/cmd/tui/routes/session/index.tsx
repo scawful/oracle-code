@@ -68,6 +68,8 @@ import stripAnsi from "strip-ansi"
 import { Footer } from "./footer.tsx"
 import { usePromptRef } from "../../context/prompt"
 import { SubagentTabBar } from "../../component/subagent-tab-bar"
+import { useApprovalMode } from "../../context/approval-mode"
+import { useToolWhitelist } from "../../context/tool-whitelist"
 
 addDefaultParsers(parsers.parsers)
 
@@ -195,6 +197,8 @@ export function Session() {
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
   const permissions = createMemo(() => sync.data.permission[route.sessionID] ?? [])
+  const approvalMode = useApprovalMode()
+  const whitelist = useToolWhitelist()
 
   const pending = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id
@@ -281,6 +285,61 @@ export function Session() {
       navigate({
         type: "session",
         sessionID: targetID,
+      })
+    }
+  })
+
+  // Auto-approve permissions based on mode
+  createEffect(() => {
+    const list = permissions()
+    if (list.length === 0) return
+
+    // Process one at a time
+    const perm = list[0]
+
+    // Find the tool name for this permission
+    // We have to search through messages/parts to find the tool call with matching callID
+    // This is a bit inefficient but safe
+    let toolName: string | undefined
+
+    // Optimization: check last assistant message first as it's most likely source
+    const lastMsg = lastAssistant()
+    if (lastMsg) {
+      const parts = sync.data.part[lastMsg.id] ?? []
+      const part = parts.find((p) => p.type === "tool" && p.callID === perm.callID) as ToolPart | undefined
+      if (part) toolName = part.tool
+    }
+
+    // Fallback: search all messages if not found (e.g. parallel tool calls in earlier message?)
+    if (!toolName) {
+      for (const msg of messages()) {
+        if (msg.role !== "assistant") continue
+        const parts = sync.data.part[msg.id] ?? []
+        const part = parts.find((p) => p.type === "tool" && p.callID === perm.callID) as ToolPart | undefined
+        if (part) {
+          toolName = part.tool
+          break
+        }
+      }
+    }
+
+    // Check whitelist first, then approval mode
+    const isWhitelisted = toolName && whitelist.isWhitelisted(toolName)
+    const isAutoApproved = toolName && approvalMode.isAutoApproved(toolName)
+
+    if (isWhitelisted || isAutoApproved) {
+      sdk.client.permission.respond({
+        permissionID: perm.id,
+        sessionID: route.sessionID,
+        response: isWhitelisted ? "always" : "once",
+      })
+
+      // Show different message for whitelist vs auto-approval
+      const reason = isWhitelisted ? "Whitelisted" : "Auto-approved"
+      toast.show({
+        message: `${reason}: ${toolName}`,
+        variant: "success",
+        duration: 2000,
       })
     }
   })

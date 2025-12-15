@@ -694,6 +694,16 @@ export namespace Config {
           webfetch: Permission.optional(),
           doom_loop: Permission.optional(),
           external_directory: Permission.optional(),
+          whitelist: z
+            .object({
+              global: z
+                .array(z.string())
+                .optional()
+                .describe("Tools that are always auto-approved across all projects"),
+              project: z.array(z.string()).optional().describe("Tools auto-approved for this project only"),
+            })
+            .optional()
+            .describe("Tool whitelist configuration - auto-approve specific tools without prompting"),
         })
         .optional(),
       tools: z.record(z.string(), z.boolean()).optional(),
