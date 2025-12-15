@@ -14,10 +14,10 @@
 import path from "path"
 import fs from "fs/promises"
 import z from "zod"
-import { AFS } from "../afs"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
 import { createHash } from "crypto"
+import { CognitiveCache } from "./cache"
 
 export namespace Metacognition {
   // =============
@@ -156,6 +156,15 @@ export namespace Metacognition {
     prototype: "Build quick proof-of-concept first",
   }
 
+  function applyMetadata<T extends Record<string, unknown>>(obj: T): T {
+    return {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: new Date().toISOString(),
+      ...obj,
+    } as T
+  }
+
   // =============
   // File Operations
   // =============
@@ -164,7 +173,10 @@ export namespace Metacognition {
     return path.join(contextRoot, "scratchpad", "metacognition.json")
   }
 
-  export async function read(contextRoot: string): Promise<MetacognitiveState | null> {
+  /**
+   * Read metacognitive state from disk (bypasses cache)
+   */
+  async function readFromDisk(contextRoot: string): Promise<MetacognitiveState | null> {
     const filePath = getPath(contextRoot)
     try {
       const content = await Bun.file(filePath).text()
@@ -175,24 +187,62 @@ export namespace Metacognition {
     }
   }
 
-  export async function write(contextRoot: string, state: MetacognitiveState): Promise<void> {
+  /**
+   * Write metacognitive state to disk (bypasses cache)
+   */
+  async function writeToDisk(contextRoot: string, state: MetacognitiveState): Promise<void> {
     const filePath = getPath(contextRoot)
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
 
     state.lastUpdated = new Date().toISOString()
-    await Bun.write(filePath, JSON.stringify(state, null, 2))
+    const withMeta = applyMetadata(state)
+    await Bun.write(filePath, JSON.stringify(withMeta, null, 2))
+  }
 
+  /**
+   * Read metacognitive state (uses cache)
+   */
+  export async function read(contextRoot: string): Promise<MetacognitiveState | null> {
+    // Check cache first
+    const cached = CognitiveCache.metacognition.get<MetacognitiveState>(contextRoot)
+    if (cached) return cached
+
+    // Read from disk and cache
+    const state = await readFromDisk(contextRoot)
+    if (state) {
+      CognitiveCache.metacognition.set(contextRoot, state)
+    }
+    return state
+  }
+
+  /**
+   * Write metacognitive state (batched writes to reduce I/O)
+   */
+  export async function write(contextRoot: string, state: MetacognitiveState): Promise<void> {
+    state.lastUpdated = new Date().toISOString()
+
+    // Update cache immediately
+    CognitiveCache.metacognition.set(contextRoot, state)
+
+    // Batch the disk write
+    CognitiveCache.metacognition.writeBatched(contextRoot, state, async (data) => {
+      await writeToDisk(contextRoot, applyMetadata(data as MetacognitiveState))
+    })
+
+    // Publish event immediately (from cache)
     Bus.publish(Event.Updated, { root: contextRoot, state })
   }
 
+  /**
+   * Get or create metacognitive state (uses cache)
+   */
   export async function getOrCreate(contextRoot: string): Promise<MetacognitiveState> {
-    const existing = await read(contextRoot)
-    if (existing) return existing
-
-    const state = MetacognitiveState.parse({})
-    await write(contextRoot, state)
-    return state
+    return CognitiveCache.metacognition.getOrCompute(
+      contextRoot,
+      () => readFromDisk(contextRoot),
+      () => MetacognitiveState.parse({}),
+    )
   }
 
   // =============

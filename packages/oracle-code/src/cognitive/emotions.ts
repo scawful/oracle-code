@@ -24,6 +24,7 @@ import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
 import { ulid } from "ulid"
 import { ProjectConfig } from "./project-config"
+import { CognitiveCache } from "./cache"
 
 export namespace Emotions {
   // =============
@@ -59,16 +60,19 @@ export namespace Emotions {
 
   // Mode-specific emotional calibration
   // Defines baseline levels and sensitivity for each agent mode
-  const MODE_CALIBRATION: Record<AgentMode, {
-    anxietyBaseline: number
-    confidenceBaseline: number
-    anxietySensitivity: number  // How much anxiety changes per event
-    confidenceSensitivity: number
-    anxietyMax: number  // Cap for this mode
-    confidenceMax: number
-    anxietyDecayRate: number  // Per-minute regression toward baseline
-    confidenceDecayRate: number
-  }> = {
+  const MODE_CALIBRATION: Record<
+    AgentMode,
+    {
+      anxietyBaseline: number
+      confidenceBaseline: number
+      anxietySensitivity: number // How much anxiety changes per event
+      confidenceSensitivity: number
+      anxietyMax: number // Cap for this mode
+      confidenceMax: number
+      anxietyDecayRate: number // Per-minute regression toward baseline
+      confidenceDecayRate: number
+    }
+  > = {
     build: {
       anxietyBaseline: 35,
       confidenceBaseline: 55,
@@ -137,35 +141,35 @@ export namespace Emotions {
 
   // How each emotion responds to changes
   export interface EmotionDynamics {
-    riseRate: number      // Multiplier for positive changes (0.5 = slow, 2 = fast)
-    fallRate: number      // Multiplier for negative changes
-    inertia: number       // Resistance to change (0 = none, 1 = very resistant)
-    rekindle: number      // How easily it bounces back after decay (0-1)
-    ceiling: number       // Max intensity for this emotion (1-10)
+    riseRate: number // Multiplier for positive changes (0.5 = slow, 2 = fast)
+    fallRate: number // Multiplier for negative changes
+    inertia: number // Resistance to change (0 = none, 1 = very resistant)
+    rekindle: number // How easily it bounces back after decay (0-1)
+    ceiling: number // Max intensity for this emotion (1-10)
   }
 
   const EMOTION_DYNAMICS: Record<EmotionCategory, EmotionDynamics> = {
     // Confidence is hard-earned, easily shaken
     satisfaction: { riseRate: 0.8, fallRate: 1.2, inertia: 0.3, rekindle: 0.6, ceiling: 10 },
-    
+
     // Anxiety spikes fast, decays slowly (sticky)
     fear: { riseRate: 1.5, fallRate: 0.5, inertia: 0.6, rekindle: 0.8, ceiling: 10 },
-    
+
     // Excitement is volatile - fast up, fast down, easily rekindled
     excitement: { riseRate: 2.0, fallRate: 1.5, inertia: 0.1, rekindle: 0.9, ceiling: 10 },
-    
+
     // Determination is heavy - slow to start, slow to stop
     determination: { riseRate: 0.6, fallRate: 0.4, inertia: 0.7, rekindle: 0.5, ceiling: 10 },
-    
+
     // Frustration builds and releases at moderate pace
     frustration: { riseRate: 1.0, fallRate: 1.0, inertia: 0.4, rekindle: 0.6, ceiling: 10 },
-    
+
     // Caution engages quickly, releases slowly
     caution: { riseRate: 1.5, fallRate: 0.6, inertia: 0.5, rekindle: 0.7, ceiling: 10 },
-    
+
     // Curiosity is easily triggered, moderately persistent
     curiosity: { riseRate: 1.3, fallRate: 1.0, inertia: 0.2, rekindle: 0.8, ceiling: 10 },
-    
+
     // Relief spikes instantly then fades
     relief: { riseRate: 2.5, fallRate: 1.8, inertia: 0.1, rekindle: 0.3, ceiling: 10 },
   }
@@ -285,26 +289,26 @@ export namespace Emotions {
    */
   export function evaluateInteractions(
     state: EmotionalState,
-    condition: "success" | "failure" | "obstacle" | "discovery"
+    condition: "success" | "failure" | "obstacle" | "discovery",
   ): Array<{ interaction: EmotionInteraction; triggered: boolean }> {
     const results: Array<{ interaction: EmotionInteraction; triggered: boolean }> = []
-    
+
     for (const interaction of EMOTION_INTERACTIONS) {
       const { primary, primaryMin, secondary, secondaryMin, condition: reqCondition } = interaction.trigger
-      
+
       // Check condition match
       if (reqCondition && reqCondition !== condition) {
         results.push({ interaction, triggered: false })
         continue
       }
-      
+
       // Check primary emotion intensity
       const primaryIntensity = getHighestIntensity(state, primary)
       if (primaryIntensity < primaryMin) {
         results.push({ interaction, triggered: false })
         continue
       }
-      
+
       // Check secondary emotion if required
       if (secondary && secondaryMin) {
         const secondaryIntensity = getHighestIntensity(state, secondary)
@@ -313,10 +317,10 @@ export namespace Emotions {
           continue
         }
       }
-      
+
       results.push({ interaction, triggered: true })
     }
-    
+
     return results
   }
 
@@ -327,32 +331,28 @@ export namespace Emotions {
     const store = getCategoryStore(state, category)
     const entries = Object.values(store)
     if (entries.length === 0) return 0
-    return Math.max(...entries.map(e => e.intensity))
+    return Math.max(...entries.map((e) => e.intensity))
   }
 
   /**
    * Apply momentum to an emotion change
    */
-  export function applyMomentum(
-    category: EmotionCategory,
-    currentIntensity: number,
-    delta: number
-  ): number {
+  export function applyMomentum(category: EmotionCategory, currentIntensity: number, delta: number): number {
     const dynamics = EMOTION_DYNAMICS[category]
-    
+
     // Apply rise/fall rate based on direction
     const rate = delta > 0 ? dynamics.riseRate : dynamics.fallRate
     const scaledDelta = delta * rate
-    
+
     // Apply inertia (resistance to change)
     const resistedDelta = scaledDelta * (1 - dynamics.inertia)
-    
+
     // Calculate new intensity
     let newIntensity = currentIntensity + resistedDelta
-    
+
     // Apply ceiling
     newIntensity = Math.max(0, Math.min(dynamics.ceiling, newIntensity))
-    
+
     return newIntensity
   }
 
@@ -369,13 +369,13 @@ export namespace Emotions {
 
   export const EmotionCategory = z.enum([
     "fear",
-    "curiosity", 
+    "curiosity",
     "satisfaction",
     "frustration",
-    "excitement",    // Positive anticipation for new challenges
+    "excitement", // Positive anticipation for new challenges
     "determination", // Focused resolve on a goal
-    "caution",       // Careful attention to potential risks
-    "relief",        // After successfully avoiding/resolving a problem
+    "caution", // Careful attention to potential risks
+    "relief", // After successfully avoiding/resolving a problem
   ])
   export type EmotionCategory = z.infer<typeof EmotionCategory>
 
@@ -387,21 +387,21 @@ export namespace Emotions {
     "confident",
     "frustrated",
     "curious",
-    "excited",      // Energized and ready for challenges
-    "determined",   // Focused and resolute
-    "cautious",     // Careful and measured
-    "relieved",     // After resolving a difficult situation
+    "excited", // Energized and ready for challenges
+    "determined", // Focused and resolute
+    "cautious", // Careful and measured
+    "relieved", // After resolving a difficult situation
   ])
   export type Mood = z.infer<typeof Mood>
 
   // Agent modes affect emotional calibration
   export const AgentMode = z.enum([
-    "build",     // Writing/editing code - moderate anxiety tolerance
-    "plan",      // Planning tasks - low anxiety, high confidence needed
-    "docs",      // Documentation - calm, neutral baseline
-    "review",    // Code review - higher anxiety tolerance (critic mode)
-    "security",  // Security audit - heightened caution
-    "chat",      // Personal/conversation - low anxiety, warmer tone
+    "build", // Writing/editing code - moderate anxiety tolerance
+    "plan", // Planning tasks - low anxiety, high confidence needed
+    "docs", // Documentation - calm, neutral baseline
+    "review", // Code review - higher anxiety tolerance (critic mode)
+    "security", // Security audit - heightened caution
+    "chat", // Personal/conversation - low anxiety, warmer tone
   ])
   export type AgentMode = z.infer<typeof AgentMode>
 
@@ -444,11 +444,11 @@ export namespace Emotions {
     confidenceLevel: z.number().min(0).max(100).default(50),
     recentEmotions: z.array(z.string()).default([]), // IDs of recent emotions this session
     moodHistory: z.array(MoodHistoryEntry).default([]),
-    
+
     // Mode-based calibration
     currentMode: AgentMode.default("build"),
     lastModeChange: z.string().optional(),
-    
+
     // Session decay tracking
     lastAnxietyUpdate: z.string().optional(),
     lastConfidenceUpdate: z.string().optional(),
@@ -493,12 +493,13 @@ export namespace Emotions {
 
     // Max mood history entries
     maxMoodHistory: z.number().default(50),
-    
+
     // Enable session emotion decay (regression toward baseline)
     enableSessionDecay: z.boolean().default(true),
-    
+
     // How often to apply session decay (in minutes)
-    sessionDecayInterval: z.number().default(5),
+    // Reduced from 5 to 1 for more responsive state changes
+    sessionDecayInterval: z.number().default(1),
   })
   export type EmotionalSettings = z.infer<typeof EmotionalSettings>
 
@@ -561,7 +562,7 @@ export namespace Emotions {
         root: z.string(),
         category: EmotionCategory.optional(),
         emotionId: z.string().optional(),
-      })
+      }),
     ),
     MoodChanged: BusEvent.define(
       "emotions.mood.changed",
@@ -570,7 +571,7 @@ export namespace Emotions {
         previousMood: Mood,
         newMood: Mood,
         trigger: z.string().optional(),
-      })
+      }),
     ),
     ThresholdCrossed: BusEvent.define(
       "emotions.threshold.crossed",
@@ -580,7 +581,7 @@ export namespace Emotions {
         direction: z.enum(["above", "below"]),
         value: z.number(),
         threshold: z.number(),
-      })
+      }),
     ),
   }
 
@@ -588,12 +589,17 @@ export namespace Emotions {
   // File Operations
   // =============
 
-  function getScratchpadPath(root: string): string {
-    return path.join(root, "scratchpad", EMOTIONS_FILE)
+  function applyMetadata<T extends Record<string, unknown>>(obj: T): T {
+    return {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: new Date().toISOString(),
+      ...obj,
+    } as T
   }
 
-  function getMemoryPath(root: string): string {
-    return path.join(root, "memory", MEMORY_EMOTIONS_FILE)
+  function getScratchpadPath(root: string): string {
+    return path.join(root, "scratchpad", EMOTIONS_FILE)
   }
 
   function createEmptyState(): EmotionalState {
@@ -615,7 +621,10 @@ export namespace Emotions {
     }
   }
 
-  export async function read(root: string): Promise<EmotionalState | null> {
+  /**
+   * Read emotional state from disk (bypasses cache)
+   */
+  async function readFromDisk(root: string): Promise<EmotionalState | null> {
     try {
       const filePath = getScratchpadPath(root)
       const content = await fs.readFile(filePath, "utf-8")
@@ -629,31 +638,64 @@ export namespace Emotions {
     }
   }
 
-  export async function write(root: string, state: EmotionalState): Promise<void> {
+  /**
+   * Write emotional state to disk (bypasses cache)
+   */
+  async function writeToDisk(root: string, state: EmotionalState): Promise<void> {
     const filePath = getScratchpadPath(root)
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
     state.lastUpdated = new Date().toISOString()
-    await fs.writeFile(filePath, JSON.stringify(state, null, 2))
+    const withMeta = applyMetadata(state)
+    await fs.writeFile(filePath, JSON.stringify(withMeta, null, 2))
+  }
+
+  /**
+   * Read emotional state (uses cache)
+   */
+  export async function read(root: string): Promise<EmotionalState | null> {
+    // Check cache first
+    const cached = CognitiveCache.emotions.get<EmotionalState>(root)
+    if (cached) return cached
+
+    // Read from disk and cache
+    const state = await readFromDisk(root)
+    if (state) {
+      CognitiveCache.emotions.set(root, state)
+    }
+    return state
+  }
+
+  /**
+   * Write emotional state (batched writes to reduce I/O)
+   */
+  export async function write(root: string, state: EmotionalState): Promise<void> {
+    state.lastUpdated = new Date().toISOString()
+
+    // Update cache immediately
+    CognitiveCache.emotions.set(root, state)
+
+    // Batch the disk write
+    CognitiveCache.emotions.writeBatched(root, state, async (data) => {
+      await writeToDisk(root, applyMetadata(data as EmotionalState))
+    })
+
+    // Publish event immediately (from cache)
     Bus.publish(Event.Updated, { root })
   }
 
+  /**
+   * Get or create emotional state (uses cache)
+   */
   async function getOrCreate(root: string): Promise<EmotionalState> {
-    const existing = await read(root)
-    if (existing) return existing
-    const empty = createEmptyState()
-    await write(root, empty)
-    return empty
+    return CognitiveCache.emotions.getOrCompute(root, () => readFromDisk(root), createEmptyState)
   }
 
   // =============
   // Category Helpers
   // =============
 
-  function getCategoryStore(
-    state: EmotionalState,
-    category: EmotionCategory
-  ): Record<string, EmotionEntry> {
+  function getCategoryStore(state: EmotionalState, category: EmotionCategory): Record<string, EmotionEntry> {
     switch (category) {
       case "fear":
         return state.fears
@@ -677,7 +719,7 @@ export namespace Emotions {
   function setCategoryStore(
     state: EmotionalState,
     category: EmotionCategory,
-    store: Record<string, EmotionEntry>
+    store: Record<string, EmotionEntry>,
   ): void {
     switch (category) {
       case "fear":
@@ -727,7 +769,7 @@ export namespace Emotions {
       relatedFiles?: string[]
       tags?: string[]
       relatedEmotionIds?: string[]
-    } = {}
+    } = {},
   ): Promise<EmotionEntry> {
     const state = await getOrCreate(root)
     const now = new Date().toISOString()
@@ -780,11 +822,7 @@ export namespace Emotions {
   /**
    * Update an emotion's intensity (user override)
    */
-  export async function updateEmotionIntensity(
-    root: string,
-    emotionId: string,
-    intensity: number
-  ): Promise<boolean> {
+  export async function updateEmotionIntensity(root: string, emotionId: string, intensity: number): Promise<boolean> {
     const state = await getOrCreate(root)
 
     for (const category of EmotionCategory.options) {
@@ -840,15 +878,10 @@ export namespace Emotions {
   /**
    * Get all emotions by category
    */
-  export async function getEmotionsByCategory(
-    root: string,
-    category: EmotionCategory
-  ): Promise<EmotionEntry[]> {
+  export async function getEmotionsByCategory(root: string, category: EmotionCategory): Promise<EmotionEntry[]> {
     const state = await read(root)
     if (!state) return []
-    return Object.values(getCategoryStore(state, category)).sort(
-      (a, b) => b.intensity - a.intensity
-    )
+    return Object.values(getCategoryStore(state, category)).sort((a, b) => b.intensity - a.intensity)
   }
 
   /**
@@ -894,11 +927,7 @@ export namespace Emotions {
   /**
    * Link emotions (e.g., fear → satisfaction when fear was avoided)
    */
-  export async function linkEmotions(
-    root: string,
-    sourceId: string,
-    targetId: string
-  ): Promise<boolean> {
+  export async function linkEmotions(root: string, sourceId: string, targetId: string): Promise<boolean> {
     const state = await getOrCreate(root)
 
     let sourceFound = false
@@ -962,10 +991,10 @@ export namespace Emotions {
     const previousLevel = state.session.anxietyLevel
     const mode = state.session.currentMode
     const calibration = MODE_CALIBRATION[mode]
-    
+
     // Scale delta by mode sensitivity
     const scaledDelta = delta * calibration.anxietySensitivity
-    
+
     // Apply the change, capped by mode's max
     const newLevel = Math.max(0, Math.min(calibration.anxietyMax, state.session.anxietyLevel + scaledDelta))
     state.session.anxietyLevel = newLevel
@@ -1014,10 +1043,10 @@ export namespace Emotions {
     const previousLevel = state.session.confidenceLevel
     const mode = state.session.currentMode
     const calibration = MODE_CALIBRATION[mode]
-    
+
     // Scale delta by mode sensitivity
     const scaledDelta = delta * calibration.confidenceSensitivity
-    
+
     // Apply the change, capped by mode's max
     const newLevel = Math.max(0, Math.min(calibration.confidenceMax, state.session.confidenceLevel + scaledDelta))
     state.session.confidenceLevel = newLevel
@@ -1064,14 +1093,14 @@ export namespace Emotions {
   export async function resetSessionEmotions(root: string, mode?: AgentMode): Promise<void> {
     const state = await getOrCreate(root)
     const now = new Date().toISOString()
-    
+
     // Get project config for default mode
     const projectConfig = await getProjectConfig(root)
     const targetMode = mode || projectConfig?.defaultMode || "build"
-    
+
     // Get merged calibration with project overrides
     const calibration = await getMergedModeCalibration(root, targetMode)
-    
+
     state.session = SessionEmotions.parse({
       currentMode: targetMode,
       anxietyLevel: calibration.anxietyBaseline,
@@ -1081,21 +1110,16 @@ export namespace Emotions {
       lastConfidenceUpdate: now,
     })
     state.lastSessionDecay = now
-    
+
     // Apply initial emotions from project config
     if (projectConfig?.initialEmotions) {
       for (const initial of projectConfig.initialEmotions) {
-        await addEmotion(
-          root,
-          initial.category,
-          initial.trigger,
-          initial.context,
-          initial.intensity,
-          { tags: ["project_initial"] }
-        )
+        await addEmotion(root, initial.category, initial.trigger, initial.context, initial.intensity, {
+          tags: ["project_initial"],
+        })
       }
     }
-    
+
     await write(root, state)
   }
 
@@ -1106,28 +1130,28 @@ export namespace Emotions {
   export async function setAgentMode(root: string, mode: AgentMode): Promise<void> {
     const state = await getOrCreate(root)
     const previousMode = state.session.currentMode
-    
+
     if (previousMode === mode) return
-    
+
     // Get merged calibration with project overrides
     const calibration = await getMergedModeCalibration(root, mode)
     const now = new Date().toISOString()
-    
+
     // Smoothly transition toward new baseline (don't jump abruptly)
     const anxietyDiff = calibration.anxietyBaseline - state.session.anxietyLevel
     const confidenceDiff = calibration.confidenceBaseline - state.session.confidenceLevel
-    
+
     // Move 50% toward the new baseline on mode change
     state.session.anxietyLevel += anxietyDiff * 0.5
     state.session.confidenceLevel += confidenceDiff * 0.5
-    
+
     // Cap to new mode's limits
     state.session.anxietyLevel = Math.min(state.session.anxietyLevel, calibration.anxietyMax)
     state.session.confidenceLevel = Math.min(state.session.confidenceLevel, calibration.confidenceMax)
-    
+
     state.session.currentMode = mode
     state.session.lastModeChange = now
-    
+
     // Update mood if appropriate for the new mode
     if (mode === "review" || mode === "security") {
       if (state.session.mood === "confident") {
@@ -1138,7 +1162,7 @@ export namespace Emotions {
         await updateMood(root, "neutral", `Entering ${mode} mode`)
       }
     }
-    
+
     await write(root, state)
   }
 
@@ -1159,45 +1183,46 @@ export namespace Emotions {
     confidenceDecayed: number
   }> {
     const state = await getOrCreate(root)
-    
+
     if (!state.settings.enableSessionDecay) {
       return { anxietyDecayed: 0, confidenceDecayed: 0 }
     }
-    
+
     const now = new Date()
     const lastDecay = state.lastSessionDecay ? new Date(state.lastSessionDecay) : now
     const minutesSinceLastDecay = (now.getTime() - lastDecay.getTime()) / (1000 * 60)
-    
+
     if (minutesSinceLastDecay < state.settings.sessionDecayInterval) {
       return { anxietyDecayed: 0, confidenceDecayed: 0 }
     }
-    
+
     const mode = state.session.currentMode
     const calibration = MODE_CALIBRATION[mode]
-    
+
     const previousAnxiety = state.session.anxietyLevel
     const previousConfidence = state.session.confidenceLevel
-    
+
     // Calculate regression toward baseline
     // The further from baseline, the more it decays
     const anxietyDiff = state.session.anxietyLevel - calibration.anxietyBaseline
     const confidenceDiff = state.session.confidenceLevel - calibration.confidenceBaseline
-    
+
     // Apply proportional decay (per minute)
-    const anxietyDecay = anxietyDiff * calibration.anxietyDecayRate * minutesSinceLastDecay * 0.1
-    const confidenceDecay = confidenceDiff * calibration.confidenceDecayRate * minutesSinceLastDecay * 0.1
-    
+    // Increased from 0.1 to 0.25 for more noticeable regression toward baseline
+    const anxietyDecay = anxietyDiff * calibration.anxietyDecayRate * minutesSinceLastDecay * 0.25
+    const confidenceDecay = confidenceDiff * calibration.confidenceDecayRate * minutesSinceLastDecay * 0.25
+
     state.session.anxietyLevel -= anxietyDecay
     state.session.confidenceLevel -= confidenceDecay
-    
+
     // Clamp to valid range
     state.session.anxietyLevel = Math.max(0, Math.min(calibration.anxietyMax, state.session.anxietyLevel))
     state.session.confidenceLevel = Math.max(0, Math.min(calibration.confidenceMax, state.session.confidenceLevel))
-    
+
     state.lastSessionDecay = now.toISOString()
-    
+
     await write(root, state)
-    
+
     return {
       anxietyDecayed: previousAnxiety - state.session.anxietyLevel,
       confidenceDecayed: previousConfidence - state.session.confidenceLevel,
@@ -1250,8 +1275,8 @@ export namespace Emotions {
    */
   export async function getMergedModeCalibration(
     root: string,
-    mode: AgentMode
-  ): Promise<typeof MODE_CALIBRATION["build"] & { expressionLevel?: ProjectConfig.ExpressionLevel }> {
+    mode: AgentMode,
+  ): Promise<(typeof MODE_CALIBRATION)["build"] & { expressionLevel?: ProjectConfig.ExpressionLevel }> {
     const projectConfig = await getProjectConfig(root)
     const defaultCalibration = MODE_CALIBRATION[mode]
 
@@ -1261,10 +1286,7 @@ export namespace Emotions {
   /**
    * Get expression level for current mode and project
    */
-  export async function getExpressionLevel(
-    root: string,
-    mode?: AgentMode
-  ): Promise<ProjectConfig.ExpressionLevel> {
+  export async function getExpressionLevel(root: string, mode?: AgentMode): Promise<ProjectConfig.ExpressionLevel> {
     const projectConfig = await getProjectConfig(root)
     const currentMode = mode || (await getAgentMode(root))
     return ProjectConfig.getExpressionLevel(currentMode, projectConfig)
@@ -1273,10 +1295,7 @@ export namespace Emotions {
   /**
    * Get path-specific emotions for a file path
    */
-  export async function getPathEmotions(
-    root: string,
-    filePath: string
-  ): Promise<ProjectConfig.PathEmotionTrigger[]> {
+  export async function getPathEmotions(root: string, filePath: string): Promise<ProjectConfig.PathEmotionTrigger[]> {
     const projectConfig = await getProjectConfig(root)
     return ProjectConfig.getPathEmotions(filePath, projectConfig)
   }
@@ -1284,11 +1303,7 @@ export namespace Emotions {
   /**
    * Apply path-specific emotions when accessing a file
    */
-  export async function applyPathEmotions(
-    root: string,
-    filePath: string,
-    sessionId?: string
-  ): Promise<EmotionEntry[]> {
+  export async function applyPathEmotions(root: string, filePath: string, sessionId?: string): Promise<EmotionEntry[]> {
     const triggers = await getPathEmotions(root, filePath)
     const addedEmotions: EmotionEntry[] = []
 
@@ -1296,7 +1311,7 @@ export namespace Emotions {
       if (trigger.mode === "boost") {
         // Check if we already have this emotion, boost it
         const existing = await getEmotionsByCategory(root, trigger.emotion)
-        const matching = existing.find(e => e.trigger.includes(trigger.description))
+        const matching = existing.find((e) => e.trigger.includes(trigger.description))
 
         if (matching) {
           // Boost existing emotion
@@ -1310,14 +1325,14 @@ export namespace Emotions {
             trigger.description,
             `Path: ${filePath}`,
             trigger.intensity,
-            { sessionId, relatedFiles: [filePath] }
+            { sessionId, relatedFiles: [filePath] },
           )
           addedEmotions.push(entry)
         }
       } else {
         // Set mode - replace any existing emotion of this type for this path
         const existing = await getEmotionsByCategory(root, trigger.emotion)
-        const matching = existing.find(e => e.relatedFiles?.includes(filePath))
+        const matching = existing.find((e) => e.relatedFiles?.includes(filePath))
 
         if (matching) {
           await updateEmotionIntensity(root, matching.id, trigger.intensity)
@@ -1328,7 +1343,7 @@ export namespace Emotions {
             trigger.description,
             `Path: ${filePath}`,
             trigger.intensity,
-            { sessionId, relatedFiles: [filePath] }
+            { sessionId, relatedFiles: [filePath] },
           )
           addedEmotions.push(entry)
         }
@@ -1365,7 +1380,7 @@ export namespace Emotions {
     for (const category of EmotionCategory.options) {
       const store = getCategoryStore(state, category)
       const threshold = state.settings.pruneThresholds[category]
-      
+
       // Get project-specific decay multiplier
       const decayMultiplier = ProjectConfig.getDecayMultiplier(category, projectConfig)
       // Get project-specific emotion ceiling
@@ -1376,7 +1391,7 @@ export namespace Emotions {
         if (emotion.intensity > ceiling) {
           emotion.intensity = ceiling
         }
-        
+
         // Calculate decay based on time since last access, with project multiplier
         const lastAccess = new Date(emotion.lastAccessed)
         const hoursSinceAccess = (now.getTime() - lastAccess.getTime()) / (1000 * 60 * 60)
@@ -1417,7 +1432,7 @@ export namespace Emotions {
       duration?: number
       consecutiveFailures?: number
       consecutiveSuccesses?: number
-    }
+    },
   ): EmotionSuggestion | null {
     // Failure patterns
     if (!success) {
@@ -1451,7 +1466,7 @@ export namespace Emotions {
    * Detect emotion from action patterns
    */
   export function detectEmotionFromPattern(
-    recentActions: Array<{ action: string; success: boolean; timestamp: string }>
+    recentActions: Array<{ action: string; success: boolean; timestamp: string }>,
   ): EmotionSuggestion | null {
     if (recentActions.length < 3) return null
 
@@ -1501,8 +1516,15 @@ export namespace Emotions {
     const cautionCount = Object.keys(state.cautions || {}).length
     const reliefCount = Object.keys(state.reliefs || {}).length
 
-    const totalEmotions = fearCount + curiosityCount + satisfactionCount + frustrationCount +
-      excitementCount + determinationCount + cautionCount + reliefCount
+    const totalEmotions =
+      fearCount +
+      curiosityCount +
+      satisfactionCount +
+      frustrationCount +
+      excitementCount +
+      determinationCount +
+      cautionCount +
+      reliefCount
 
     return {
       mood: state.session.mood,
@@ -1537,6 +1559,95 @@ export namespace Emotions {
     determined: "💪",
     cautious: "🔍",
     relieved: "😌",
+  }
+
+  // =============
+  // Expression Style (Chat Mode Tone Adjustment)
+  // =============
+
+  /**
+   * Expression style for chat mode - affects tone without explicit emotion mention.
+   * See COGNITIVE_PROTOCOL_v0.3.md §3.1 for full specification.
+   */
+  export interface ExpressionStyle {
+    /** How much to hedge statements: "none" (build/plan), "low", "medium", "high" */
+    hedgingLevel: "none" | "low" | "medium" | "high"
+    /** How direct to be: "neutral" (build/plan), "low", "medium", "high" */
+    directness: "neutral" | "low" | "medium" | "high"
+    /** Warmth/engagement level: "neutral" (build/plan), "medium", "high" */
+    warmth: "neutral" | "medium" | "high"
+  }
+
+  /**
+   * Get expression style based on mode and emotional state.
+   *
+   * In chat mode, this affects HOW things are said (tone) without explicitly
+   * stating emotions. High anxiety → more hedging, high confidence → more direct.
+   *
+   * In build/plan modes, returns neutral style (emotions influence behavior, not expression).
+   *
+   * @example
+   * // Chat mode with high anxiety
+   * getExpressionStyle("chat", state) // { hedgingLevel: "high", directness: "low", warmth: "medium" }
+   *
+   * // Build mode (always neutral expression)
+   * getExpressionStyle("build", state) // { hedgingLevel: "none", directness: "neutral", warmth: "neutral" }
+   */
+  export function getExpressionStyle(mode: AgentMode, state: EmotionalState): ExpressionStyle {
+    // Build, plan, review, security modes: emotions affect behavior, not expression
+    if (mode !== "chat" && mode !== "docs") {
+      return { hedgingLevel: "none", directness: "neutral", warmth: "neutral" }
+    }
+
+    const { anxietyLevel, confidenceLevel, mood } = state.session
+
+    // Chat/docs mode: map emotional state to expression style
+    const hedgingLevel: ExpressionStyle["hedgingLevel"] =
+      anxietyLevel > 60 ? "high" : anxietyLevel > 40 ? "medium" : anxietyLevel > 20 ? "low" : "none"
+
+    const directness: ExpressionStyle["directness"] =
+      confidenceLevel > 70 ? "high" : confidenceLevel > 50 ? "medium" : "low"
+
+    const warmth: ExpressionStyle["warmth"] =
+      mood === "positive" || mood === "curious" || mood === "excited" ? "high" : "medium"
+
+    return { hedgingLevel, directness, warmth }
+  }
+
+  /**
+   * Get example phrases for the current expression style.
+   * Useful for understanding how to apply the style.
+   */
+  export function getExpressionExamples(style: ExpressionStyle): {
+    hedgingPhrases: string[]
+    directnessPhrases: string[]
+    warmthPhrases: string[]
+  } {
+    const hedgingPhrases: Record<ExpressionStyle["hedgingLevel"], string[]> = {
+      none: [],
+      low: ["I think", "It looks like", "This should"],
+      medium: ["I believe", "It seems", "This might", "Probably"],
+      high: ["I'm not entirely sure, but", "It appears that", "This could potentially", "If I understand correctly"],
+    }
+
+    const directnessPhrases: Record<ExpressionStyle["directness"], string[]> = {
+      neutral: [],
+      low: ["You might want to consider", "One option would be", "Perhaps"],
+      medium: ["I'd suggest", "You should", "The approach is"],
+      high: ["Do this:", "The solution is", "Here's what to do:", "Definitely"],
+    }
+
+    const warmthPhrases: Record<ExpressionStyle["warmth"], string[]> = {
+      neutral: [],
+      medium: ["Sure", "Happy to help", "Let me"],
+      high: ["Great question!", "That's interesting!", "I'd love to help with", "Oh, that's a cool problem"],
+    }
+
+    return {
+      hedgingPhrases: hedgingPhrases[style.hedgingLevel],
+      directnessPhrases: directnessPhrases[style.directness],
+      warmthPhrases: warmthPhrases[style.warmth],
+    }
   }
 
   /**
@@ -1595,7 +1706,7 @@ export namespace Emotions {
     lines.push(`- **Mood**: ${MOOD_EMOJI[summary.mood]} ${summary.mood}`)
     lines.push(`- **Anxiety**: ${summary.anxietyLevel}%`)
     lines.push(`- **Confidence**: ${summary.confidenceLevel}%`)
-    
+
     const emotionParts = []
     if (summary.fearCount > 0) emotionParts.push(`${summary.fearCount} fears`)
     if (summary.curiosityCount > 0) emotionParts.push(`${summary.curiosityCount} curiosities`)
@@ -1605,7 +1716,7 @@ export namespace Emotions {
     if (summary.determinationCount > 0) emotionParts.push(`${summary.determinationCount} determinations`)
     if (summary.cautionCount > 0) emotionParts.push(`${summary.cautionCount} cautions`)
     if (summary.reliefCount > 0) emotionParts.push(`${summary.reliefCount} reliefs`)
-    
+
     if (emotionParts.length > 0) {
       lines.push(`- **Emotions**: ${emotionParts.join(", ")}`)
     }
@@ -1631,10 +1742,7 @@ export namespace Emotions {
   /**
    * Update settings
    */
-  export async function updateSettings(
-    root: string,
-    updates: Partial<EmotionalSettings>
-  ): Promise<void> {
+  export async function updateSettings(root: string, updates: Partial<EmotionalSettings>): Promise<void> {
     const state = await getOrCreate(root)
     state.settings = { ...state.settings, ...updates }
     await write(root, state)
@@ -1647,10 +1755,7 @@ export namespace Emotions {
   /**
    * Reset emotions by category or all
    */
-  export async function reset(
-    root: string,
-    category?: EmotionCategory | "all" | "session"
-  ): Promise<void> {
+  export async function reset(root: string, category?: EmotionCategory | "all" | "session"): Promise<void> {
     const state = await getOrCreate(root)
     const now = new Date().toISOString()
     const mode = state.session.currentMode
@@ -1694,10 +1799,7 @@ export namespace Emotions {
   /**
    * Search emotions by trigger text (for cross-referencing)
    */
-  export async function searchByTrigger(
-    root: string,
-    searchText: string
-  ): Promise<EmotionEntry[]> {
+  export async function searchByTrigger(root: string, searchText: string): Promise<EmotionEntry[]> {
     const state = await read(root)
     if (!state) return []
 
@@ -1723,10 +1825,7 @@ export namespace Emotions {
   /**
    * Get emotions related to specific files
    */
-  export async function getEmotionsForFiles(
-    root: string,
-    files: string[]
-  ): Promise<EmotionEntry[]> {
+  export async function getEmotionsForFiles(root: string, files: string[]): Promise<EmotionEntry[]> {
     const state = await read(root)
     if (!state) return []
 

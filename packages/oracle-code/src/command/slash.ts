@@ -10,7 +10,15 @@ import { Session } from "../session"
 import { Todo } from "../session/todo"
 import { Vcs } from "../project/vcs"
 import { Config } from "../config/config"
-import { CognitiveIntegration, Metacognition, Goals, Epistemic, Emotions, AnalysisTriggers } from "../cognitive"
+import {
+  CognitiveIntegration,
+  Metacognition,
+  Goals,
+  Epistemic,
+  Emotions,
+  AnalysisTriggers,
+  CognitiveMetrics,
+} from "../cognitive"
 
 export namespace SlashCommand {
   export const Event = {
@@ -500,9 +508,7 @@ export namespace SlashCommand {
           await Session.share(ctx.sessionID)
           const session = await Session.get(ctx.sessionID)
           return {
-            output: session?.share?.url
-              ? `**Share URL:** ${session.share.url}`
-              : "Session shared successfully",
+            output: session?.share?.url ? `**Share URL:** ${session.share.url}` : "Session shared successfully",
           }
         }
         default:
@@ -1267,7 +1273,10 @@ export namespace SlashCommand {
           const sourceStr = ctx.args[4] as Epistemic.KnowledgeSource | undefined
 
           if (!key || !valueStr) {
-            return { error: "Usage: /knowledge fact <key> <value> [confidence] [source]\n\nKey format: category.subcategory.name (e.g., config.typescript.strict)" }
+            return {
+              error:
+                "Usage: /knowledge fact <key> <value> [confidence] [source]\n\nKey format: category.subcategory.name (e.g., config.typescript.strict)",
+            }
           }
 
           // Parse value (try JSON, fallback to string)
@@ -1282,7 +1291,9 @@ export namespace SlashCommand {
           const source = sourceStr || "user_stated"
 
           await Epistemic.addWorkingFact(root, key, value, confidence, source as Epistemic.KnowledgeSource)
-          return { output: `Added working fact: \`${key}\` = ${JSON.stringify(value)} (${Math.round(confidence * 100)}%)` }
+          return {
+            output: `Added working fact: \`${key}\` = ${JSON.stringify(value)} (${Math.round(confidence * 100)}%)`,
+          }
         }
 
         case "golden": {
@@ -1293,7 +1304,10 @@ export namespace SlashCommand {
           const reason = ctx.args.slice(4).join(" ")
 
           if (!key || !valueStr || !category || !reason) {
-            return { error: "Usage: /knowledge golden <key> <value> <category> <reason>\n\nCategories: architecture, constraints, user_preference, project_identity" }
+            return {
+              error:
+                "Usage: /knowledge golden <key> <value> <category> <reason>\n\nCategories: architecture, constraints, user_preference, project_identity",
+            }
           }
 
           const validCategories = ["architecture", "constraints", "user_preference", "project_identity"]
@@ -1467,7 +1481,7 @@ export namespace SlashCommand {
           for (const fact of workingFacts.slice(0, 10)) {
             const conf = Math.round(fact.confidence * 100)
             const lastValidated = new Date(fact.lastValidated)
-            const hoursAgo = Math.round((Date.now() - lastValidated.getTime()) / (1000 * 60 * 60) * 10) / 10
+            const hoursAgo = Math.round(((Date.now() - lastValidated.getTime()) / (1000 * 60 * 60)) * 10) / 10
             output += `- \`${fact.key}\` (${conf}%) - validated ${hoursAgo}h ago\n`
           }
 
@@ -1504,7 +1518,13 @@ export namespace SlashCommand {
           }
 
           // Update setting
-          const validKeys = ["autoRecordFromTools", "autoDetectContradictions", "minConfidenceForAutoRecord", "decayRatePerHour", "pruneThreshold"]
+          const validKeys = [
+            "autoRecordFromTools",
+            "autoDetectContradictions",
+            "minConfidenceForAutoRecord",
+            "decayRatePerHour",
+            "pruneThreshold",
+          ]
           if (!validKeys.includes(key)) {
             return { error: `Invalid setting. Valid: ${validKeys.join(", ")}` }
           }
@@ -1528,7 +1548,7 @@ export namespace SlashCommand {
         case "reset": {
           const scope = (ctx.args[1] || "all") as "golden" | "working" | "all"
           const validScopes = ["golden", "working", "all"]
-          
+
           if (!validScopes.includes(scope)) {
             return { error: `Invalid scope. Must be one of: ${validScopes.join(", ")}` }
           }
@@ -1539,7 +1559,8 @@ export namespace SlashCommand {
 
         default:
           return {
-            error: `Unknown action: ${action}\n\nAvailable actions:\n` +
+            error:
+              `Unknown action: ${action}\n\nAvailable actions:\n` +
               `- status: Show summary\n` +
               `- facts [golden|working] [filter]: List facts\n` +
               `- assumptions: List assumptions\n` +
@@ -1633,13 +1654,13 @@ export namespace SlashCommand {
 
         case "mood": {
           const moodArg = ctx.args[1]
-          
+
           if (moodArg === "history") {
             const history = await Emotions.getMoodHistory(root)
             if (history.length === 0) {
               return { output: "_No mood history yet._" }
             }
-            
+
             let output = "**Mood History:**\n\n"
             for (const entry of history.slice(0, 20)) {
               const time = new Date(entry.timestamp).toLocaleTimeString()
@@ -1694,7 +1715,7 @@ export namespace SlashCommand {
           const category = ctx.args[1] as Emotions.EmotionCategory
           const trigger = ctx.args.slice(2, -1).join(" ")
           const intensityArg = ctx.args[ctx.args.length - 1]
-          
+
           // Check if last arg is a number (intensity) or part of trigger
           let intensity = parseInt(intensityArg)
           let fullTrigger = trigger
@@ -1704,7 +1725,9 @@ export namespace SlashCommand {
           }
 
           if (!category || !fullTrigger) {
-            return { error: "Usage: /emotions record <fear|curiosity|satisfaction|frustration> <description> [intensity]" }
+            return {
+              error: "Usage: /emotions record <fear|curiosity|satisfaction|frustration> <description> [intensity]",
+            }
           }
 
           const validCategories = Emotions.EmotionCategory.options
@@ -1713,7 +1736,9 @@ export namespace SlashCommand {
           }
 
           const emotion = await Emotions.addEmotion(root, category, fullTrigger, "Manual recording", intensity)
-          return { output: `${categoryEmoji[category]} Recorded ${category}: "${fullTrigger}" (intensity: ${intensity})` }
+          return {
+            output: `${categoryEmoji[category]} Recorded ${category}: "${fullTrigger}" (intensity: ${intensity})`,
+          }
         }
 
         case "list": {
@@ -1758,7 +1783,7 @@ export namespace SlashCommand {
         case "recent": {
           const limit = parseInt(ctx.args[1] || "10")
           const emotions = await Emotions.getRecentEmotions(root, limit)
-          
+
           if (emotions.length === 0) {
             return { output: "_No recent emotions._" }
           }
@@ -1807,7 +1832,7 @@ export namespace SlashCommand {
         case "link": {
           const sourceId = ctx.args[1]
           const targetId = ctx.args[2]
-          
+
           if (!sourceId || !targetId) {
             return { error: "Usage: /emotions link <source-id> <target-id>" }
           }
@@ -1898,7 +1923,8 @@ export namespace SlashCommand {
 
         default:
           return {
-            error: `Unknown action: ${action}\n\nAvailable actions:\n` +
+            error:
+              `Unknown action: ${action}\n\nAvailable actions:\n` +
               `- status: Show emotional state summary\n` +
               `- mood [mood] [trigger]: Get/set current mood\n` +
               `- mood history: Show mood history\n` +
@@ -2032,14 +2058,14 @@ export namespace SlashCommand {
               output += `Auto-accept: ${trigger.autoAccept}\n`
               output += `Priority: ${trigger.priority}\n`
               output += `Cooldown: ${trigger.cooldownMinutes}min\n`
-              
+
               output += `\n**Conditions:**\n`
               for (const [key, value] of Object.entries(trigger.conditions)) {
                 if (value !== undefined) {
                   output += `- ${key}: ${value}\n`
                 }
               }
-              
+
               output += `\n**Suggestion:**\n`
               output += `- Mode: ${trigger.suggestion.analysisMode}\n`
               if (trigger.suggestion.subagentType) {
@@ -2058,7 +2084,8 @@ export namespace SlashCommand {
 
             default:
               return {
-                error: `Unknown triggers action: ${subAction}\n\nAvailable:\n` +
+                error:
+                  `Unknown triggers action: ${subAction}\n\nAvailable:\n` +
                   `- list: List all triggers\n` +
                   `- enable <id>: Enable a trigger\n` +
                   `- disable <id>: Disable a trigger\n` +
@@ -2086,17 +2113,18 @@ export namespace SlashCommand {
           // This would need the full cognitive state, so simplified here
           const triggers = await AnalysisTriggers.getTriggers(root)
           const enabled = triggers.filter((t) => t.enabled)
-          
+
           let output = `**${enabled.length} triggers enabled**\n\n`
           output += "Use cognitive state to evaluate triggers.\n"
           output += "Triggers fire automatically based on conditions.\n"
-          
+
           return { output }
         }
 
         default:
           return {
-            error: `Unknown action: ${action}\n\nAvailable actions:\n` +
+            error:
+              `Unknown action: ${action}\n\nAvailable actions:\n` +
               `- triggers [list|enable|disable|cooldown|auto|info|reset]: Manage triggers\n` +
               `- global [on|off]: Enable/disable all triggers\n` +
               `- evaluate: Show evaluation status`,
@@ -2104,5 +2132,172 @@ export namespace SlashCommand {
       }
     },
     "/analysis [action] [args]",
+  )
+
+  // /metrics - View cognitive protocol metrics and A/B comparison
+  register(
+    "metrics",
+    "View cognitive protocol effectiveness metrics",
+    async (ctx) => {
+      const root = await AFS.findRoot()
+      if (!root) {
+        return { error: "AFS not initialized. Run 'ocode afs init' first." }
+      }
+
+      const action = ctx.args[0] || "status"
+
+      switch (action) {
+        case "status": {
+          // Show current session metrics if active
+          const current = CognitiveMetrics.getCurrentSession()
+          if (!current) {
+            return { output: "_No active metrics session. Metrics are tracked automatically during sessions._" }
+          }
+
+          const summary = CognitiveMetrics.formatMetricsSummary(current)
+          return { output: summary }
+        }
+
+        case "compare": {
+          // A/B comparison between verbose and condensed formats
+          const comparison = await CognitiveMetrics.getABComparison(root)
+          const output = CognitiveMetrics.formatABComparison(comparison)
+          return { output }
+        }
+
+        case "recent": {
+          const limit = parseInt(ctx.args[1] || "5")
+          const sessions = await CognitiveMetrics.getRecentSessions(root, limit)
+
+          if (sessions.length === 0) {
+            return { output: "_No recorded sessions. Metrics are tracked automatically._" }
+          }
+
+          let output = `**Recent Sessions (${sessions.length}):**\n\n`
+          for (const session of sessions) {
+            const startTime = new Date(session.startedAt).toLocaleString()
+            const duration = session.endedAt
+              ? Math.round((new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000)
+              : "ongoing"
+            const successRate = session.derived?.toolSuccessRate
+              ? `${(session.derived.toolSuccessRate * 100).toFixed(0)}%`
+              : "N/A"
+            const overhead = session.derived?.cognitiveOverheadPercent
+              ? `${session.derived.cognitiveOverheadPercent.toFixed(1)}%`
+              : "N/A"
+
+            output += `- **${session.config.cognitiveFormat}** (Tier ${session.config.cognitiveTier})\n`
+            output += `  ${startTime} | ${duration}min\n`
+            output += `  Tools: ${session.outcomes.toolCallsSucceeded}/${session.outcomes.toolCallsTotal} (${successRate})\n`
+            output += `  Cognitive overhead: ${overhead}\n\n`
+          }
+          return { output }
+        }
+
+        case "aggregate": {
+          const aggregate = await CognitiveMetrics.getAggregate(root)
+          if (!aggregate) {
+            return { output: "_No aggregate metrics yet. Complete some sessions first._" }
+          }
+
+          let output = `**Aggregate Metrics**\n`
+          output += `Total sessions: ${aggregate.totalSessions}\n`
+          output += `Last updated: ${new Date(aggregate.lastUpdated).toLocaleString()}\n\n`
+
+          if (Object.keys(aggregate.byFormat).length > 0) {
+            output += `**By Format:**\n`
+            for (const [format, stats] of Object.entries(aggregate.byFormat)) {
+              output += `- ${format}: ${stats.sessionCount} sessions\n`
+              output += `  Avg success: ${(stats.avgToolSuccessRate * 100).toFixed(1)}%\n`
+              output += `  Avg overhead: ${stats.avgCognitiveOverheadPercent.toFixed(1)}%\n`
+            }
+          }
+
+          if (Object.keys(aggregate.byTier).length > 0) {
+            output += `\n**By Tier:**\n`
+            for (const [tier, stats] of Object.entries(aggregate.byTier)) {
+              output += `- Tier ${tier}: ${stats.sessionCount} sessions\n`
+              output += `  Avg success: ${(stats.avgToolSuccessRate * 100).toFixed(1)}%\n`
+              output += `  Avg overhead: ${stats.avgCognitiveOverheadPercent.toFixed(1)}%\n`
+            }
+          }
+
+          return { output }
+        }
+
+        case "correlations": {
+          // Show anxiety/confidence correlations with tool success
+          const current = CognitiveMetrics.getCurrentSession()
+          const sessions = await CognitiveMetrics.getRecentSessions(root, 10)
+
+          let output = "**Emotion-Success Correlations**\n\n"
+          output += "_Positive = higher level predicts success_\n"
+          output += "_Negative = higher level predicts failure_\n\n"
+
+          // Current session
+          if (current?.anxietySamples.length && current.anxietySamples.length >= 5) {
+            output += "**Current Session:**\n"
+            const anxiety = current.derived?.anxietyCorrelation
+            const confidence = current.derived?.confidenceCorrelation
+            if (anxiety !== undefined) {
+              const dir = anxiety > 0 ? "+" : ""
+              output += `- Anxiety: ${dir}${(anxiety * 100).toFixed(1)}%\n`
+            }
+            if (confidence !== undefined) {
+              const dir = confidence > 0 ? "+" : ""
+              output += `- Confidence: ${dir}${(confidence * 100).toFixed(1)}%\n`
+            }
+            output += "\n"
+          }
+
+          // Historical average
+          const sessionsWithCorr = sessions.filter((s) => s.derived?.anxietyCorrelation !== undefined)
+          if (sessionsWithCorr.length >= 3) {
+            const avgAnxiety =
+              sessionsWithCorr.reduce((sum, s) => sum + (s.derived?.anxietyCorrelation || 0), 0) /
+              sessionsWithCorr.length
+            const avgConfidence =
+              sessionsWithCorr.reduce((sum, s) => sum + (s.derived?.confidenceCorrelation || 0), 0) /
+              sessionsWithCorr.length
+
+            output += `**Historical Average (${sessionsWithCorr.length} sessions):**\n`
+            output += `- Anxiety: ${avgAnxiety > 0 ? "+" : ""}${(avgAnxiety * 100).toFixed(1)}%\n`
+            output += `- Confidence: ${avgConfidence > 0 ? "+" : ""}${(avgConfidence * 100).toFixed(1)}%\n\n`
+
+            // Interpretation
+            if (Math.abs(avgConfidence) > 0.1) {
+              if (avgConfidence > 0) {
+                output += "_High confidence correlates with tool success - confidence tracking is useful_\n"
+              } else {
+                output += "_High confidence correlates with failure - may indicate overconfidence_\n"
+              }
+            }
+            if (Math.abs(avgAnxiety) > 0.1) {
+              if (avgAnxiety < 0) {
+                output += "_High anxiety correlates with failure - anxiety warnings are accurate_\n"
+              } else {
+                output += "_High anxiety correlates with success - anxiety may drive more careful work_\n"
+              }
+            }
+          } else {
+            output += "_Need more sessions with correlation data (5+ samples each)_\n"
+          }
+
+          return { output }
+        }
+
+        default:
+          return {
+            error:
+              `Unknown action: ${action}\n\nAvailable actions:\n` +
+              `- status: Show current session metrics\n` +
+              `- compare: A/B comparison of verbose vs condensed format\n` +
+              `- recent [limit]: Show recent session metrics\n` +
+              `- aggregate: Show aggregate metrics across sessions\n` +
+              `- correlations: Show anxiety/confidence correlations with success`,
+          }
+      }
+    },
+    "/metrics [status|compare|recent|aggregate|correlations]",
   )
 }

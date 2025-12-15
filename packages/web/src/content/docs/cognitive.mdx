@@ -1,0 +1,216 @@
+---
+title: Cognitive Protocol
+description: Configure AI cognitive state and context injection.
+---
+
+Oracle Code supports a cognitive protocol for managing AI state, emotional heuristics, and context injection tiers.
+
+---
+
+## Overview
+
+The cognitive protocol provides:
+
+- **Tiered context injection** - Control how much context is injected into prompts
+- **Cognitive state tracking** - Monitor anxiety, confidence, and spin detection
+- **Dynamic context sources** - Include tasks, calendar, mood, and other data
+- **Token budgets** - Manage context window usage efficiently
+
+---
+
+## Configure tiers
+
+Set the cognitive tier in your config to control context injection depth.
+
+```json title="oracle-code.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "cognitive": {
+    "tier": 2,
+    "format": "condensed"
+  }
+}
+```
+
+---
+
+## Tier levels
+
+| Tier | Name      | Budget | Description                                   |
+| ---- | --------- | ------ | --------------------------------------------- |
+| 0    | Off       | 0      | No context injection                          |
+| 1    | Aware     | 150    | Warnings only (spinning, high anxiety)        |
+| 2    | Condensed | 500    | Warnings + compact hivemind + dynamic context |
+| 3    | Verbose   | 2000   | Full cognitive state + all context            |
+
+---
+
+## Use environment variables
+
+Override the tier using environment variables.
+
+```bash
+OCODE_COGNITIVE_TIER=2 oracle-code
+OCODE_COGNITIVE_FORMAT=condensed oracle-code
+```
+
+---
+
+## Tier 1 output
+
+At tier 1, only warnings are injected.
+
+```xml
+<cog_warnings>SPINNING | HIGH_ANXIETY</cog_warnings>
+```
+
+This is useful for lightweight monitoring without consuming many tokens.
+
+---
+
+## Tier 2 output
+
+At tier 2, you get condensed context.
+
+```xml
+<cog_warnings>HIGH_ANXIETY</cog_warnings>
+<hivemind>project_oracle_code, chris_profile, test_patterns</hivemind>
+## Current Situation
+### Pending Tasks
+- Fix authentication bug
+- Update documentation
+```
+
+---
+
+## Tier 3 output
+
+At tier 3, full context is included.
+
+```markdown
+<cog_warnings>HIGH_ANXIETY</cog_warnings>
+
+## Hivemind
+
+- project_oracle_code: Oracle Code TypeScript AI assistant
+- chris_profile: User's girlfriend, 24yo, assistant buyer
+- test_patterns: Use vitest for unit tests
+
+## Current Situation
+
+### Pending Tasks
+
+- Fix authentication bug
+- Update documentation
+
+### Upcoming Events
+
+- Team standup at 10:00
+
+## Cognitive State
+
+- Strategy: adaptive
+- Spin: none
+- Mood: focused
+- Anxiety: 35%
+- Confidence: 85%
+```
+
+---
+
+## Emotional heuristics
+
+Emotions influence agent behavior without being explicitly expressed.
+
+| State           | Effect                             |
+| --------------- | ---------------------------------- |
+| High anxiety    | More verification, smaller commits |
+| High confidence | Larger steps, more autonomy        |
+| Frustration     | Consider switching strategy        |
+| Curiosity       | Show engagement in responses       |
+
+---
+
+## Configure sources
+
+Control which dynamic sources are included in context.
+
+```json title="oracle-code.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "cognitive": {
+    "tier": 2,
+    "sources": {
+      "tasks": true,
+      "calendar": true,
+      "mood": false,
+      "groceries": false
+    }
+  }
+}
+```
+
+---
+
+## Check metrics
+
+Use the `/metrics` command to view cognitive metrics.
+
+```bash
+/metrics status      # Current session metrics
+/metrics compare     # A/B comparison between tiers
+/metrics correlations # Anxiety/confidence correlations
+```
+
+---
+
+## JSON schema
+
+The cognitive state follows the v0.3 protocol specification.
+
+```json title=".context/scratchpad/state.json"
+{
+  "schema_version": "0.3",
+  "producer": {
+    "name": "oracle-code",
+    "version": "1.0.0"
+  },
+  "last_updated": "2024-12-15T12:00:00Z",
+  "mood": "focused",
+  "anxiety": 0.35,
+  "confidence": 0.85,
+  "strategy": "adaptive",
+  "spin_detected": false,
+  "warnings": []
+}
+```
+
+---
+
+## AFS integration
+
+Cognitive state is stored in the Agentic File System (AFS).
+
+| Path                                     | Contents                |
+| ---------------------------------------- | ----------------------- |
+| `.context/scratchpad/state.json`         | Current cognitive state |
+| `.context/scratchpad/emotions.json`      | Emotion history         |
+| `.context/scratchpad/metacognition.json` | Strategy and load       |
+| `.context/hivemind/`                     | Cross-session learnings |
+
+---
+
+## Spin detection
+
+Oracle Code monitors for repeated unsuccessful patterns.
+
+When spin is detected:
+
+1. Warning appears in tier 1+ output
+2. Recommendation to change strategy
+3. Optional escalation to user
+
+```bash
+# Reset spin counter manually
+/cognitive reset-spin
+```

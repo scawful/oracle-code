@@ -33,6 +33,15 @@ export namespace AnalysisTriggers {
 
   const TRIGGERS_FILE = "analysis-triggers.json"
 
+  function applyMetadata<T extends Record<string, unknown>>(obj: T): T {
+    return {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: new Date().toISOString(),
+      ...obj,
+    } as T
+  }
+
   // =============
   // Zod Schemas
   // =============
@@ -481,7 +490,8 @@ export namespace AnalysisTriggers {
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
     repo.lastUpdated = new Date().toISOString()
-    await fs.writeFile(filePath, JSON.stringify(repo, null, 2))
+    const withMeta = applyMetadata(repo)
+    await fs.writeFile(filePath, JSON.stringify(withMeta, null, 2))
   }
 
   async function getOrCreate(root: string): Promise<TriggerRepository> {

@@ -17,6 +17,7 @@ import z from "zod"
 import { AFS } from "../afs"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
+import { CognitiveCache } from "./cache"
 
 export namespace Goals {
   // =============
@@ -155,11 +156,20 @@ export namespace Goals {
   // File Operations
   // =============
 
+  function applyMetadata<T extends Record<string, unknown>>(obj: T): T {
+    return {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: new Date().toISOString(),
+      ...obj,
+    } as T
+  }
+
   export function getPath(contextRoot: string): string {
     return path.join(contextRoot, "scratchpad", "goals.json")
   }
 
-  export async function read(contextRoot: string): Promise<GoalHierarchy | null> {
+  async function readFromDisk(contextRoot: string): Promise<GoalHierarchy | null> {
     const filePath = getPath(contextRoot)
     try {
       const content = await Bun.file(filePath).text()
@@ -170,24 +180,39 @@ export namespace Goals {
     }
   }
 
-  export async function write(contextRoot: string, hierarchy: GoalHierarchy): Promise<void> {
+  async function writeToDisk(contextRoot: string, hierarchy: GoalHierarchy): Promise<void> {
     const filePath = getPath(contextRoot)
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
+    const withMeta = applyMetadata(hierarchy)
+    await Bun.write(filePath, JSON.stringify(withMeta, null, 2))
+  }
 
+  export async function read(contextRoot: string): Promise<GoalHierarchy | null> {
+    const cached = CognitiveCache.goals.get<GoalHierarchy>(contextRoot)
+    if (cached) return cached
+
+    const data = await readFromDisk(contextRoot)
+    if (data) {
+      CognitiveCache.goals.set(contextRoot, data)
+    }
+    return data
+  }
+
+  export async function write(contextRoot: string, hierarchy: GoalHierarchy): Promise<void> {
     hierarchy.lastUpdated = new Date().toISOString()
-    await Bun.write(filePath, JSON.stringify(hierarchy, null, 2))
-
+    CognitiveCache.goals.writeBatched(contextRoot, hierarchy, (data) =>
+      writeToDisk(contextRoot, applyMetadata(data as GoalHierarchy)),
+    )
     Bus.publish(Event.Updated, { root: contextRoot, hierarchy })
   }
 
   export async function getOrCreate(contextRoot: string): Promise<GoalHierarchy> {
-    const existing = await read(contextRoot)
-    if (existing) return existing
-
-    const hierarchy = GoalHierarchy.parse({})
-    await write(contextRoot, hierarchy)
-    return hierarchy
+    return CognitiveCache.goals.getOrCompute(
+      contextRoot,
+      () => readFromDisk(contextRoot),
+      () => GoalHierarchy.parse({}),
+    )
   }
 
   // =============
@@ -555,7 +580,10 @@ export namespace Goals {
       }
     }
 
-    if (hierarchy.primaryGoal && (hierarchy.primaryGoal.status === "pending" || hierarchy.primaryGoal.status === "in_progress")) {
+    if (
+      hierarchy.primaryGoal &&
+      (hierarchy.primaryGoal.status === "pending" || hierarchy.primaryGoal.status === "in_progress")
+    ) {
       return hierarchy.primaryGoal
     }
 

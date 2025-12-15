@@ -1,15 +1,15 @@
 /**
  * Grounding System
- * 
+ *
  * Detects when the agent is in an unproductive emotional state (anxiety spiral,
  * frustration loop, confidence crash) and provides mechanisms to reset and recover.
- * 
+ *
  * Uses mindfulness-inspired techniques:
  * - Observe the state without judgment
  * - Record what led to this state (for learning)
  * - Reset toward baseline
  * - Suggest recovery strategy
- * 
+ *
  * The grounding process preserves useful emotions (determination, curiosity)
  * while releasing unproductive ones (excessive anxiety, frustration).
  */
@@ -21,6 +21,7 @@ import path from "path"
 import fs from "fs/promises"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
+import { CognitiveCache } from "./cache"
 
 export namespace Grounding {
   // =============
@@ -28,12 +29,12 @@ export namespace Grounding {
   // =============
 
   export const GroundingTrigger = z.enum([
-    "anxiety_spiral",      // Anxiety stayed high too long
-    "frustration_loop",    // Repeated failures building frustration
-    "confidence_crash",    // Rapid confidence drop
-    "spin_detected",       // Same action repeated without progress
-    "emotional_overload",  // Too many intense emotions at once
-    "manual",              // User requested grounding
+    "anxiety_spiral", // Anxiety stayed high too long
+    "frustration_loop", // Repeated failures building frustration
+    "confidence_crash", // Rapid confidence drop
+    "spin_detected", // Same action repeated without progress
+    "emotional_overload", // Too many intense emotions at once
+    "manual", // User requested grounding
   ])
   export type GroundingTrigger = z.infer<typeof GroundingTrigger>
 
@@ -65,11 +66,13 @@ export namespace Grounding {
       anxietyLevel: z.number(),
       confidenceLevel: z.number(),
       mood: Emotions.Mood,
-      topEmotions: z.array(z.object({
-        category: Emotions.EmotionCategory,
-        intensity: z.number(),
-        trigger: z.string(),
-      })),
+      topEmotions: z.array(
+        z.object({
+          category: Emotions.EmotionCategory,
+          intensity: z.number(),
+          trigger: z.string(),
+        }),
+      ),
     }),
     emotionalStateAfter: z.object({
       anxietyLevel: z.number(),
@@ -102,20 +105,22 @@ export namespace Grounding {
     lastConfidenceCheck: z.string().optional(),
     consecutiveFailures: z.number().default(0),
     recentActions: z.array(z.string()).default([]),
-    
+
     // History
     incidents: z.array(GroundingIncident).default([]),
     lastGrounding: z.string().optional(),
-    
+
     // Settings
-    thresholds: z.object({
-      anxietySpiral: z.object({ level: z.number(), durationMinutes: z.number() }),
-      frustrationLoop: z.object({ intensity: z.number(), consecutiveFailures: z.number() }),
-      confidenceCrash: z.object({ dropAmount: z.number(), windowMinutes: z.number() }),
-      spinDetected: z.object({ sameActionCount: z.number() }),
-      emotionalOverload: z.object({ totalIntensity: z.number(), emotionCount: z.number() }),
-    }).default(DEFAULT_THRESHOLDS),
-    
+    thresholds: z
+      .object({
+        anxietySpiral: z.object({ level: z.number(), durationMinutes: z.number() }),
+        frustrationLoop: z.object({ intensity: z.number(), consecutiveFailures: z.number() }),
+        confidenceCrash: z.object({ dropAmount: z.number(), windowMinutes: z.number() }),
+        spinDetected: z.object({ sameActionCount: z.number() }),
+        emotionalOverload: z.object({ totalIntensity: z.number(), emotionCount: z.number() }),
+      })
+      .default(DEFAULT_THRESHOLDS),
+
     // Enable/disable automatic grounding
     autoGroundingEnabled: z.boolean().default(true),
   })
@@ -132,7 +137,7 @@ export namespace Grounding {
         root: z.string(),
         trigger: GroundingTrigger,
         incidentId: z.string(),
-      })
+      }),
     ),
     GroundingCompleted: BusEvent.define(
       "grounding.completed",
@@ -140,7 +145,7 @@ export namespace Grounding {
         root: z.string(),
         incidentId: z.string(),
         recoveryStrategy: z.string(),
-      })
+      }),
     ),
   }
 
@@ -154,7 +159,7 @@ export namespace Grounding {
     return path.join(root, "scratchpad", GROUNDING_FILE)
   }
 
-  export async function read(root: string): Promise<GroundingState | null> {
+  async function readFromDisk(root: string): Promise<GroundingState | null> {
     try {
       const filePath = getFilePath(root)
       const content = await fs.readFile(filePath, "utf-8")
@@ -167,19 +172,34 @@ export namespace Grounding {
     }
   }
 
-  export async function write(root: string, state: GroundingState): Promise<void> {
+  async function writeToDisk(root: string, state: GroundingState): Promise<void> {
     const filePath = getFilePath(root)
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(filePath, JSON.stringify(state, null, 2))
   }
 
+  export async function read(root: string): Promise<GroundingState | null> {
+    const cached = CognitiveCache.grounding.get<GroundingState>(root)
+    if (cached) return cached
+
+    const data = await readFromDisk(root)
+    if (data) {
+      CognitiveCache.grounding.set(root, data)
+    }
+    return data
+  }
+
+  export async function write(root: string, state: GroundingState): Promise<void> {
+    CognitiveCache.grounding.writeBatched(root, state, (data) => writeToDisk(root, data as GroundingState))
+  }
+
   async function getOrCreate(root: string): Promise<GroundingState> {
-    const existing = await read(root)
-    if (existing) return existing
-    const empty = GroundingState.parse({})
-    await write(root, empty)
-    return empty
+    return CognitiveCache.grounding.getOrCompute(
+      root,
+      () => readFromDisk(root),
+      () => GroundingState.parse({}),
+    )
   }
 
   // =============
@@ -197,14 +217,14 @@ export namespace Grounding {
    */
   export async function checkTriggers(
     root: string,
-    ctx: DetectionContext
+    ctx: DetectionContext,
   ): Promise<{ triggered: boolean; trigger?: GroundingTrigger; reason?: string }> {
     const state = await getOrCreate(root)
-    
+
     if (!state.autoGroundingEnabled) {
       return { triggered: false }
     }
-    
+
     const thresholds = state.thresholds
     const now = new Date()
 
@@ -231,7 +251,7 @@ export namespace Grounding {
 
     // 2. Frustration Loop
     const frustrations = Object.values(ctx.emotionalState.frustrations)
-    const highFrustration = frustrations.some(f => f.intensity >= thresholds.frustrationLoop.intensity)
+    const highFrustration = frustrations.some((f) => f.intensity >= thresholds.frustrationLoop.intensity)
     if (highFrustration && ctx.consecutiveFailures >= thresholds.frustrationLoop.consecutiveFailures) {
       return {
         triggered: true,
@@ -244,7 +264,7 @@ export namespace Grounding {
     if (state.lastConfidenceLevel !== undefined && state.lastConfidenceCheck) {
       const lastCheck = new Date(state.lastConfidenceCheck)
       const minutesSinceCheck = (now.getTime() - lastCheck.getTime()) / (1000 * 60)
-      
+
       if (minutesSinceCheck <= thresholds.confidenceCrash.windowMinutes) {
         const drop = state.lastConfidenceLevel - ctx.emotionalState.session.confidenceLevel
         if (drop >= thresholds.confidenceCrash.dropAmount) {
@@ -277,11 +297,13 @@ export namespace Grounding {
       ...Object.values(ctx.emotionalState.excitements || {}),
       ...Object.values(ctx.emotionalState.cautions || {}),
     ]
-    const intenseEmotions = allEmotions.filter(e => e.intensity >= 5)
+    const intenseEmotions = allEmotions.filter((e) => e.intensity >= 5)
     const totalIntensity = intenseEmotions.reduce((sum, e) => sum + e.intensity, 0)
-    
-    if (intenseEmotions.length >= thresholds.emotionalOverload.emotionCount &&
-        totalIntensity >= thresholds.emotionalOverload.totalIntensity) {
+
+    if (
+      intenseEmotions.length >= thresholds.emotionalOverload.emotionCount &&
+      totalIntensity >= thresholds.emotionalOverload.totalIntensity
+    ) {
       return {
         triggered: true,
         trigger: "emotional_overload",
@@ -310,7 +332,7 @@ export namespace Grounding {
     root: string,
     trigger: GroundingTrigger,
     reason: string,
-    ctx: DetectionContext
+    ctx: DetectionContext,
   ): Promise<GroundingResult> {
     const state = await getOrCreate(root)
     const emotionalState = ctx.emotionalState
@@ -382,7 +404,7 @@ export namespace Grounding {
    */
   async function applyMindfulnessReset(
     root: string,
-    emotionalState: Emotions.EmotionalState
+    emotionalState: Emotions.EmotionalState,
   ): Promise<Emotions.EmotionalState> {
     const mode = emotionalState.session.currentMode
     const calibration = Emotions.getModeCalibration(mode)
@@ -391,15 +413,11 @@ export namespace Grounding {
     const blendFactor = 0.6 // Move 60% toward baseline
 
     // Reset anxiety and confidence toward baseline
-    const newAnxiety = blend(
-      emotionalState.session.anxietyLevel,
-      calibration.anxietyBaseline,
-      blendFactor
-    )
+    const newAnxiety = blend(emotionalState.session.anxietyLevel, calibration.anxietyBaseline, blendFactor)
     const newConfidence = blend(
       emotionalState.session.confidenceLevel,
       calibration.confidenceBaseline,
-      0.4 // Less aggressive for confidence
+      0.4, // Less aggressive for confidence
     )
 
     // Update emotional state
@@ -409,7 +427,7 @@ export namespace Grounding {
     // Reduce intensity of unproductive emotions (but don't delete)
     // Frustration, fear get reduced
     // Determination, curiosity are preserved
-    
+
     // Update mood to neutral or cautious
     await Emotions.updateMood(root, "cautious", "Grounding - reassessing approach")
 
@@ -427,7 +445,7 @@ export namespace Grounding {
    */
   function getTopEmotions(
     state: Emotions.EmotionalState,
-    count: number
+    count: number,
   ): Array<{ category: Emotions.EmotionCategory; intensity: number; trigger: string }> {
     const all: Array<{ category: Emotions.EmotionCategory; intensity: number; trigger: string }> = []
 
@@ -451,9 +469,7 @@ export namespace Grounding {
       }
     }
 
-    return all
-      .sort((a, b) => b.intensity - a.intensity)
-      .slice(0, count)
+    return all.sort((a, b) => b.intensity - a.intensity).slice(0, count)
   }
 
   /**
@@ -463,7 +479,7 @@ export namespace Grounding {
     trigger: GroundingTrigger,
     reason: string,
     ctx: DetectionContext,
-    topEmotions: Array<{ category: Emotions.EmotionCategory; intensity: number; trigger: string }>
+    topEmotions: Array<{ category: Emotions.EmotionCategory; intensity: number; trigger: string }>,
   ): GroundingIncident["knowledge"] {
     let whatTriggeredIt = reason
     let whatWasntWorking = ""
@@ -475,7 +491,7 @@ export namespace Grounding {
         alternativeApproaches.push(
           "Take smaller, safer steps",
           "Validate assumptions before proceeding",
-          "Ask for user confirmation on risky operations"
+          "Ask for user confirmation on risky operations",
         )
         break
 
@@ -485,7 +501,7 @@ export namespace Grounding {
           "Try a completely different strategy",
           "Spawn explore agent to research alternatives",
           "Break the problem down differently",
-          "Ask user for additional context"
+          "Ask user for additional context",
         )
         break
 
@@ -494,7 +510,7 @@ export namespace Grounding {
         alternativeApproaches.push(
           "Review what assumption was violated",
           "Gather more information before next action",
-          "Consider if the goal needs adjustment"
+          "Consider if the goal needs adjustment",
         )
         break
 
@@ -504,7 +520,7 @@ export namespace Grounding {
         alternativeApproaches.push(
           "Stop and analyze why this action isn't working",
           "Try a different tool or approach",
-          "Check if there's a blocking issue to address first"
+          "Check if there's a blocking issue to address first",
         )
         break
 
@@ -513,17 +529,14 @@ export namespace Grounding {
         alternativeApproaches.push(
           "Simplify - focus on one thing at a time",
           "Prioritize which emotion/concern is most important",
-          "Take a step back and reassess the overall goal"
+          "Take a step back and reassess the overall goal",
         )
         break
 
       case "manual":
         whatTriggeredIt = "User requested grounding"
         whatWasntWorking = "User noticed unproductive state"
-        alternativeApproaches.push(
-          "Ask user what they observed",
-          "Review recent approach for issues"
-        )
+        alternativeApproaches.push("Ask user what they observed", "Review recent approach for issues")
         break
     }
 
@@ -551,10 +564,7 @@ export namespace Grounding {
   /**
    * Determine recovery strategy based on trigger
    */
-  function determineRecoveryStrategy(
-    trigger: GroundingTrigger,
-    knowledge: GroundingIncident["knowledge"]
-  ): string {
+  function determineRecoveryStrategy(trigger: GroundingTrigger, knowledge: GroundingIncident["knowledge"]): string {
     switch (trigger) {
       case "anxiety_spiral":
         return "cautious_incremental"
@@ -595,21 +605,25 @@ export namespace Grounding {
   function generateFullExplanation(
     incident: GroundingIncident,
     knowledge: GroundingIncident["knowledge"],
-    strategy: string
+    strategy: string,
   ): string {
     const lines: string[] = []
-    
+
     lines.push("## Grounding Incident")
     lines.push("")
     lines.push(`**Trigger:** ${incident.trigger}`)
     lines.push(`**Reason:** ${knowledge.whatTriggeredIt}`)
     lines.push("")
     lines.push("### What Was Happening")
-    lines.push(`- Anxiety: ${incident.emotionalStateBefore.anxietyLevel}% → ${incident.emotionalStateAfter.anxietyLevel}%`)
-    lines.push(`- Confidence: ${incident.emotionalStateBefore.confidenceLevel}% → ${incident.emotionalStateAfter.confidenceLevel}%`)
+    lines.push(
+      `- Anxiety: ${incident.emotionalStateBefore.anxietyLevel}% → ${incident.emotionalStateAfter.anxietyLevel}%`,
+    )
+    lines.push(
+      `- Confidence: ${incident.emotionalStateBefore.confidenceLevel}% → ${incident.emotionalStateAfter.confidenceLevel}%`,
+    )
     lines.push(`- Mood: ${incident.emotionalStateBefore.mood} → ${incident.emotionalStateAfter.mood}`)
     lines.push("")
-    
+
     if (incident.emotionalStateBefore.topEmotions.length > 0) {
       lines.push("### Active Emotions")
       for (const e of incident.emotionalStateBefore.topEmotions) {
@@ -617,7 +631,7 @@ export namespace Grounding {
       }
       lines.push("")
     }
-    
+
     lines.push("### Analysis")
     lines.push(`**What wasn't working:** ${knowledge.whatWasntWorking}`)
     lines.push("")
@@ -627,7 +641,7 @@ export namespace Grounding {
     }
     lines.push("")
     lines.push(`**Recovery strategy:** ${strategy}`)
-    
+
     return lines.join("\n")
   }
 
@@ -641,7 +655,7 @@ export namespace Grounding {
   export async function manualGround(
     root: string,
     emotionalState: Emotions.EmotionalState,
-    recentActions: string[] = []
+    recentActions: string[] = [],
   ): Promise<GroundingResult> {
     return ground(root, "manual", "User requested grounding", {
       emotionalState,

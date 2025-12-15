@@ -13,14 +13,19 @@ export namespace Flag {
   export const OCODE_FAKE_VCS = process.env["OCODE_FAKE_VCS"]
   // Feature Flags
   export const OCODE_EXPERIMENTAL = truthy("OCODE_EXPERIMENTAL")
-  export const OCODE_EXPERIMENTAL_ICON_DISCOVERY =
-    OCODE_EXPERIMENTAL || truthy("OCODE_EXPERIMENTAL_ICON_DISCOVERY")
+  export const OCODE_EXPERIMENTAL_ICON_DISCOVERY = OCODE_EXPERIMENTAL || truthy("OCODE_EXPERIMENTAL_ICON_DISCOVERY")
   export const OCODE_EXPERIMENTAL_WATCHER = OCODE_EXPERIMENTAL || truthy("OCODE_EXPERIMENTAL_WATCHER")
   export const OCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT = truthy("OCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT")
-  export const OCODE_ENABLE_EXA =
-    truthy("OCODE_ENABLE_EXA") || OCODE_EXPERIMENTAL || truthy("OCODE_EXPERIMENTAL_EXA")
+  export const OCODE_ENABLE_EXA = truthy("OCODE_ENABLE_EXA") || OCODE_EXPERIMENTAL || truthy("OCODE_EXPERIMENTAL_EXA")
   export const OCODE_EXPERIMENTAL_BASH_MAX_OUTPUT_LENGTH = number("OCODE_EXPERIMENTAL_BASH_MAX_OUTPUT_LENGTH")
   export const OCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number("OCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS")
+
+  // Cognitive Protocol Flags
+  // Format: "verbose" (default) or "condensed" - for A/B testing cognitive state injection
+  export const OCODE_COGNITIVE_FORMAT =
+    (process.env["OCODE_COGNITIVE_FORMAT"]?.toLowerCase() as "verbose" | "condensed" | undefined) || "verbose"
+  // Tier: "0" (minimal), "1" (aware, default), "2" (engaged), "3" (full)
+  export const OCODE_COGNITIVE_TIER = (process.env["OCODE_COGNITIVE_TIER"] as "0" | "1" | "2" | "3" | undefined) || "1"
 
   function truthy(key: string) {
     const value = process.env[key]?.toLowerCase()

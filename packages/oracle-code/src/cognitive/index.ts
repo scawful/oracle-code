@@ -60,6 +60,9 @@ export { Autonomy } from "./autonomy"
 export { HistoricalMemory } from "./historical-memory"
 export { ProjectConfig } from "./project-config"
 
+// Metrics and measurement
+export { CognitiveMetrics } from "./metrics"
+
 // Re-export hivemind types for convenience
 export type {
   HivemindState,

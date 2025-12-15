@@ -15,6 +15,7 @@ import { Bus } from "../../bus"
 import { BusEvent } from "../../bus/bus-event"
 import { AFS } from "../../afs"
 import { Log } from "../../util/log"
+import { Cache } from "../../util/cache"
 import {
   HivemindState,
   HivemindEntry,
@@ -105,6 +106,76 @@ export namespace HivemindStore {
       })
     ),
   } as const
+
+  // =============
+  // Caching Layer
+  // =============
+
+  // Category-level caches with 5s TTL
+  type CacheKey = `${HivemindScope}:${string}` // scope:dir
+  const categoryCache = new Map<`${CacheKey}:${CategoryArrayKey}`, { data: HivemindEntry[]; expires: number }>()
+  const manifestCache = new Map<CacheKey, { data: z.infer<typeof HivemindManifest>; expires: number }>()
+  const pendingCache = new Map<CacheKey, { data: z.infer<typeof PromotionRequest>[]; expires: number }>()
+  const councilsCache = new Map<CacheKey, { data: z.infer<typeof CouncilSession>[]; expires: number }>()
+
+  const CACHE_TTL_MS = 5000
+
+  function getCacheKey(scope: HivemindScope, dir: string): CacheKey {
+    return `${scope}:${dir}`
+  }
+
+  function isCacheValid<T>(entry: { data: T; expires: number } | undefined): entry is { data: T; expires: number } {
+    return entry !== undefined && Date.now() < entry.expires
+  }
+
+  function getCachedCategory(scope: HivemindScope, dir: string, arrayKey: CategoryArrayKey): HivemindEntry[] | null {
+    const key = `${getCacheKey(scope, dir)}:${arrayKey}` as const
+    const entry = categoryCache.get(key)
+    if (isCacheValid(entry)) return entry.data
+    return null
+  }
+
+  function setCachedCategory(scope: HivemindScope, dir: string, arrayKey: CategoryArrayKey, data: HivemindEntry[]): void {
+    const key = `${getCacheKey(scope, dir)}:${arrayKey}` as const
+    categoryCache.set(key, { data, expires: Date.now() + CACHE_TTL_MS })
+  }
+
+  function invalidateCategoryCache(scope: HivemindScope, dir: string, arrayKey?: CategoryArrayKey): void {
+    if (arrayKey) {
+      categoryCache.delete(`${getCacheKey(scope, dir)}:${arrayKey}` as const)
+    } else {
+      // Invalidate all categories for this scope/dir
+      const prefix = getCacheKey(scope, dir)
+      for (const key of categoryCache.keys()) {
+        if (key.startsWith(prefix)) categoryCache.delete(key)
+      }
+    }
+  }
+
+  function getCachedManifest(scope: HivemindScope, dir: string): z.infer<typeof HivemindManifest> | null {
+    const entry = manifestCache.get(getCacheKey(scope, dir))
+    if (isCacheValid(entry)) return entry.data
+    return null
+  }
+
+  function setCachedManifest(scope: HivemindScope, dir: string, data: z.infer<typeof HivemindManifest>): void {
+    manifestCache.set(getCacheKey(scope, dir), { data, expires: Date.now() + CACHE_TTL_MS })
+  }
+
+  function invalidateManifestCache(scope: HivemindScope, dir: string): void {
+    manifestCache.delete(getCacheKey(scope, dir))
+  }
+
+  /**
+   * Clear all hivemind caches (useful for testing or after bulk operations)
+   */
+  export function clearCaches(): void {
+    categoryCache.clear()
+    manifestCache.clear()
+    pendingCache.clear()
+    councilsCache.clear()
+    log.info("hivemind caches cleared")
+  }
 
   // =============
   // Path Helpers
@@ -250,7 +321,102 @@ export namespace HivemindStore {
   }
 
   async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2))
+    const withMeta =
+      typeof data === "object" && data !== null
+        ? {
+            schema_version: "0.3",
+            producer: { name: "oracle-code", version: "unknown" },
+            last_updated: new Date().toISOString(),
+            ...(data as Record<string, unknown>),
+          }
+        : data
+    await fs.writeFile(filePath, JSON.stringify(withMeta, null, 2))
+  }
+
+  // =============
+  // Cached Single-File Readers (Lazy Loading)
+  // =============
+
+  /**
+   * Read a single category file with caching
+   */
+  async function readCategoryFileCached(
+    scope: HivemindScope,
+    dir: string,
+    arrayKey: CategoryArrayKey
+  ): Promise<HivemindEntry[]> {
+    // Check cache first
+    const cached = getCachedCategory(scope, dir, arrayKey)
+    if (cached !== null) return cached
+
+    // Read from disk
+    const filename = FILES[arrayKey]
+    const data = await readJsonFileSafe(
+      path.join(dir, filename),
+      (d) => parseArrayOf(HivemindEntry, d),
+      () => []
+    )
+
+    // Cache and return
+    setCachedCategory(scope, dir, arrayKey, data)
+    return data
+  }
+
+  /**
+   * Read manifest file with caching
+   */
+  async function readManifestCached(
+    scope: HivemindScope,
+    dir: string
+  ): Promise<z.infer<typeof HivemindManifest>> {
+    // Check cache first
+    const cached = getCachedManifest(scope, dir)
+    if (cached !== null) return cached
+
+    // Read from disk
+    const data = await readJsonFileSafe(
+      path.join(dir, FILES.manifest),
+      (d) => parseManifest(d),
+      () => HivemindManifest.parse({ lastSync: new Date().toISOString() })
+    )
+
+    // Cache and return
+    setCachedManifest(scope, dir, data)
+    return data
+  }
+
+  /**
+   * Read pending promotions with caching
+   */
+  async function readPendingCached(scope: HivemindScope, dir: string): Promise<z.infer<typeof PromotionRequest>[]> {
+    const key = getCacheKey(scope, dir)
+    const entry = pendingCache.get(key)
+    if (isCacheValid(entry)) return entry.data
+
+    const data = await readJsonFileSafe(
+      path.join(dir, FILES.pending),
+      (d) => parseArrayOf(PromotionRequest, d),
+      () => []
+    )
+    pendingCache.set(key, { data, expires: Date.now() + CACHE_TTL_MS })
+    return data
+  }
+
+  /**
+   * Read councils with caching
+   */
+  async function readCouncilsCached(scope: HivemindScope, dir: string): Promise<z.infer<typeof CouncilSession>[]> {
+    const key = getCacheKey(scope, dir)
+    const entry = councilsCache.get(key)
+    if (isCacheValid(entry)) return entry.data
+
+    const data = await readJsonFileSafe(
+      path.join(dir, FILES.councils),
+      (d) => parseArrayOf(CouncilSession, d),
+      () => []
+    )
+    councilsCache.set(key, { data, expires: Date.now() + CACHE_TTL_MS })
+    return data
   }
 
   // =============
@@ -258,7 +424,9 @@ export namespace HivemindStore {
   // =============
 
   /**
-   * Get the complete hivemind state for a scope
+   * Get the complete hivemind state for a scope.
+   * NOTE: This reads all files. For better performance, use getEntriesByCategory()
+   * or getEntry() when you only need specific data.
    */
   export async function getState(
     contextRoot?: string,
@@ -267,20 +435,17 @@ export namespace HivemindStore {
     const dir = scope === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
     await ensureDirectory(dir)
 
+    // Use cached readers for all files
     const [fears, satisfactions, knowledge, decisions, preferences, pending, councils, manifest] =
       await Promise.all([
-        readJsonFileSafe(path.join(dir, FILES.fears), (d) => parseArrayOf(HivemindEntry, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.satisfactions), (d) => parseArrayOf(HivemindEntry, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.knowledge), (d) => parseArrayOf(HivemindEntry, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.decisions), (d) => parseArrayOf(HivemindEntry, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.preferences), (d) => parseArrayOf(HivemindEntry, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.pending), (d) => parseArrayOf(PromotionRequest, d), () => []),
-        readJsonFileSafe(path.join(dir, FILES.councils), (d) => parseArrayOf(CouncilSession, d), () => []),
-        readJsonFileSafe(
-          path.join(dir, FILES.manifest),
-          (d) => parseManifest(d),
-          () => HivemindManifest.parse({ lastSync: new Date().toISOString() }),
-        ),
+        readCategoryFileCached(scope, dir, "fears"),
+        readCategoryFileCached(scope, dir, "satisfactions"),
+        readCategoryFileCached(scope, dir, "knowledge"),
+        readCategoryFileCached(scope, dir, "decisions"),
+        readCategoryFileCached(scope, dir, "preferences"),
+        readPendingCached(scope, dir),
+        readCouncilsCached(scope, dir),
+        readManifestCached(scope, dir),
       ])
 
     return {
@@ -317,7 +482,7 @@ export namespace HivemindStore {
   }
 
   /**
-   * Get a single entry by ID
+   * Get a single entry by ID (lazy loading - searches category by category)
    */
   export async function getEntry(
     id: string,
@@ -328,9 +493,13 @@ export namespace HivemindStore {
 
     for (const s of scopes) {
       try {
-        const state = await getState(contextRoot, s)
+        const dir = s === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
+        await ensureDirectory(dir)
+        
+        // Search categories one at a time (lazy) instead of loading all
         for (const arrayKey of Object.values(categoryToArrayKey)) {
-          const entry = state[arrayKey].find((e) => e.id === id)
+          const entries = await readCategoryFileCached(s, dir, arrayKey)
+          const entry = entries.find((e) => e.id === id)
           if (entry) return entry
         }
       } catch {
@@ -342,7 +511,7 @@ export namespace HivemindStore {
   }
 
   /**
-   * Get entries by category
+   * Get entries by category (lazy loading - only reads the specific category file)
    */
   export async function getEntriesByCategory(
     category: HivemindCategory,
@@ -353,14 +522,18 @@ export namespace HivemindStore {
     const results: HivemindEntry[] = []
 
     if (!scope || scope === "project") {
-      const projectState = await getState(contextRoot, "project")
-      results.push(...projectState[arrayKey])
+      const dir = await getProjectRoot(contextRoot)
+      await ensureDirectory(dir)
+      const entries = await readCategoryFileCached("project", dir, arrayKey)
+      results.push(...entries)
     }
 
     if (!scope || scope === "global") {
       try {
-        const globalState = await getState(undefined, "global")
-        results.push(...globalState[arrayKey])
+        const dir = getGlobalRoot()
+        await ensureDirectory(dir)
+        const entries = await readCategoryFileCached("global", dir, arrayKey)
+        results.push(...entries)
       } catch {
         // Global not available
       }
@@ -440,18 +613,19 @@ export namespace HivemindStore {
   }
 
   /**
-   * Get the manifest for a scope
+   * Get the manifest for a scope (lazy - only reads manifest file)
    */
   export async function getManifest(
     contextRoot?: string,
     scope: HivemindScope = "project"
   ): Promise<HivemindManifest> {
-    const state = await getState(contextRoot, scope)
-    return state.manifest
+    const dir = scope === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
+    await ensureDirectory(dir)
+    return readManifestCached(scope, dir)
   }
 
   /**
-   * Get an entry by key (instead of ID)
+   * Get an entry by key (lazy loading - searches category by category)
    */
   export async function getEntryByKey(
     key: string,
@@ -462,9 +636,12 @@ export namespace HivemindStore {
 
     for (const s of scopes) {
       try {
-        const state = await getState(contextRoot, s)
+        const dir = s === "global" ? getGlobalRoot() : await getProjectRoot(contextRoot)
+        await ensureDirectory(dir)
+        
         for (const arrayKey of Object.values(categoryToArrayKey)) {
-          const entry = state[arrayKey].find((e) => e.key === key)
+          const entries = await readCategoryFileCached(s, dir, arrayKey)
+          const entry = entries.find((e) => e.key === key)
           if (entry) return entry
         }
       } catch {
@@ -760,6 +937,7 @@ export namespace HivemindStore {
     manifest.globalFilter = filter
     manifest.lastSync = new Date().toISOString()
     await writeJsonFile(manifestPath, manifest)
+    invalidateManifestCache("project", dir)
     Bus.publish(Event.Updated, { scope: "project" })
   }
 
@@ -815,6 +993,9 @@ export namespace HivemindStore {
     entries.push(fullEntry)
     await writeJsonFile(filePath, entries)
 
+    // Invalidate cache for this category
+    invalidateCategoryCache(fullEntry.scope, dir, arrayKey)
+
     // Update manifest stats
     await updateStats(contextRoot, fullEntry.scope)
 
@@ -850,6 +1031,9 @@ export namespace HivemindStore {
     entries[index] = updated
     await writeJsonFile(filePath, entries)
 
+    // Invalidate cache for this category
+    invalidateCategoryCache(existing.scope, dir, arrayKey)
+
     // Update stats if status changed
     if (updates.status) {
       await updateStats(contextRoot, existing.scope)
@@ -879,6 +1063,10 @@ export namespace HivemindStore {
     if (filtered.length === entries.length) return false
 
     await writeJsonFile(filePath, filtered)
+    
+    // Invalidate cache for this category
+    invalidateCategoryCache(existing.scope, dir, arrayKey)
+    
     await updateStats(contextRoot, existing.scope)
 
     Bus.publish(Event.EntryRemoved, { entryId: id, category: existing.category })
@@ -970,6 +1158,7 @@ export namespace HivemindStore {
     manifest.globalEnabled = true
     manifest.lastSync = new Date().toISOString()
     await writeJsonFile(manifestPath, manifest)
+    invalidateManifestCache("project", dir)
 
     Bus.publish(Event.GlobalToggled, { enabled: true })
     Bus.publish(Event.Updated, { scope: "project" })
@@ -990,6 +1179,7 @@ export namespace HivemindStore {
     manifest.globalEnabled = false
     manifest.lastSync = new Date().toISOString()
     await writeJsonFile(manifestPath, manifest)
+    invalidateManifestCache("project", dir)
 
     Bus.publish(Event.GlobalToggled, { enabled: false })
     Bus.publish(Event.Updated, { scope: "project" })
@@ -1208,6 +1398,7 @@ export namespace HivemindStore {
     manifest.lastSync = new Date().toISOString()
 
     await writeJsonFile(manifestPath, manifest)
+    invalidateManifestCache(scope, dir)
   }
 
   /**
@@ -1253,6 +1444,7 @@ export namespace HivemindStore {
     manifest.lastSync = new Date().toISOString()
 
     await writeJsonFile(manifestPath, manifest)
+    invalidateManifestCache(scope, dir)
     Bus.publish(Event.Updated, { scope })
   }
 }

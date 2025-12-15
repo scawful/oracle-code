@@ -5,6 +5,7 @@ import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
 import { AFS } from "../afs"
 import { CognitiveIntegration } from "../cognitive/integration"
+import { StateJson } from "./state-json"
 
 export namespace State {
   export const Event = {
@@ -238,7 +239,34 @@ export namespace State {
     await fs.mkdir(scratchpadDir, { recursive: true })
     await Bun.write(statePath, serialize(data, cognitiveExport))
 
+    // Also persist canonical JSON form for v0.3 compatibility
+    await StateJson.write(contextRoot, {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: data.lastUpdated,
+      entries: data.entries.map((e) => ({
+        key: e.key,
+        value: e.value,
+        section: e.section,
+        timestamp: e.timestamp,
+      })),
+    })
+
     Bus.publish(Event.Updated, { root: contextRoot })
+  }
+
+  /**
+   * Render state.md from state.json (if present) to keep the two in sync.
+   */
+  export async function renderFromJson(contextRoot: string): Promise<void> {
+    await StateJson.renderToMarkdown(contextRoot)
+  }
+
+  /**
+   * Ingest state.md into state.json (for backward compatibility).
+   */
+  export async function ingestToJson(contextRoot: string): Promise<void> {
+    await StateJson.ingestFromMarkdown(contextRoot)
   }
 
   /**

@@ -739,6 +739,34 @@ export namespace Config {
             .describe("Tools that should only be available to primary agents."),
         })
         .optional(),
+      cognitive: z
+        .object({
+          tier: z
+            .enum(["0", "1", "2", "3"])
+            .optional()
+            .describe(
+              "Cognitive protocol tier: 0=minimal (no injection), 1=aware (warnings only), 2=engaged (condensed+hivemind), 3=full (verbose)",
+            ),
+          format: z
+            .enum(["verbose", "condensed"])
+            .optional()
+            .describe("Cognitive state format for prompt injection (overrides tier default)"),
+          emotions: z.boolean().optional().describe("Enable emotional state tracking"),
+          hivemind: z.boolean().optional().describe("Enable cross-session learning (hivemind)"),
+          metrics: z.boolean().optional().describe("Enable metrics collection for A/B testing"),
+          autonomy: z
+            .object({
+              level: z.number().min(0).max(100).optional().describe("Base autonomy level (0-100)"),
+              preset: z
+                .enum(["supervised", "collaborative", "autonomous", "full_auto"])
+                .optional()
+                .describe("Autonomy preset"),
+            })
+            .optional()
+            .describe("Autonomy configuration for agentic behavior"),
+        })
+        .optional()
+        .describe("Cognitive protocol configuration (AFS integration, emotional tracking, hivemind)"),
     })
     .strict()
     .meta({

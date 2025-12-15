@@ -16,6 +16,7 @@ import z from "zod"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
 import { ulid } from "ulid"
+import { CognitiveCache } from "./cache"
 
 export namespace Epistemic {
   // =============
@@ -160,20 +161,36 @@ export namespace Epistemic {
       "epistemic.updated",
       z.object({
         root: z.string(),
-        changeType: z.enum(["fact_added", "fact_removed", "assumption_added", "unknown_added", "contradiction_detected", "decay_applied"]),
-      })
+        changeType: z.enum([
+          "fact_added",
+          "fact_removed",
+          "assumption_added",
+          "unknown_added",
+          "contradiction_detected",
+          "decay_applied",
+        ]),
+      }),
     ),
     ContradictionDetected: BusEvent.define(
       "epistemic.contradiction_detected",
       z.object({
         contradiction: Contradiction,
-      })
+      }),
     ),
   }
 
   // =============
   // File Operations
   // =============
+
+  function applyMetadata<T extends Record<string, unknown>>(obj: T): T {
+    return {
+      schema_version: "0.3",
+      producer: { name: "oracle-code", version: "unknown" },
+      last_updated: new Date().toISOString(),
+      ...obj,
+    } as T
+  }
 
   const EPISTEMIC_FILE = "epistemic.json"
 
@@ -195,7 +212,7 @@ export namespace Epistemic {
     }
   }
 
-  export async function read(root: string): Promise<EpistemicState | null> {
+  async function readFromDisk(root: string): Promise<EpistemicState | null> {
     try {
       const filePath = getFilePath(root)
       const content = await fs.readFile(filePath, "utf-8")
@@ -209,24 +226,38 @@ export namespace Epistemic {
     }
   }
 
-  export async function write(root: string, state: EpistemicState): Promise<void> {
+  async function writeToDisk(root: string, state: EpistemicState): Promise<void> {
     const filePath = getFilePath(root)
-    state.lastUpdated = new Date().toISOString()
     await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, JSON.stringify(state, null, 2))
+    const withMeta = applyMetadata(state)
+    await fs.writeFile(filePath, JSON.stringify(withMeta, null, 2))
+  }
+
+  export async function read(root: string): Promise<EpistemicState | null> {
+    const cached = CognitiveCache.epistemic.get<EpistemicState>(root)
+    if (cached) return cached
+
+    const data = await readFromDisk(root)
+    if (data) {
+      CognitiveCache.epistemic.set(root, data)
+    }
+    return data
+  }
+
+  export async function write(root: string, state: EpistemicState): Promise<void> {
+    state.lastUpdated = new Date().toISOString()
+    CognitiveCache.epistemic.writeBatched(root, state, (data) =>
+      writeToDisk(root, applyMetadata(data as EpistemicState)),
+    )
   }
 
   export async function getOrCreate(root: string): Promise<EpistemicState> {
-    const existing = await read(root)
-    if (existing) return existing
-    const empty = createEmptyState()
-    await write(root, empty)
-    return empty
+    return CognitiveCache.epistemic.getOrCompute(root, () => readFromDisk(root), createEmptyState)
   }
 
   export async function reset(root: string, scope: "golden" | "working" | "all" = "all"): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     switch (scope) {
       case "golden":
         state.goldenFacts = {}
@@ -243,7 +274,7 @@ export namespace Epistemic {
         state.settings = settings // Preserve settings
         break
     }
-    
+
     await write(root, state)
   }
 
@@ -273,7 +304,7 @@ export namespace Epistemic {
     value: unknown,
     confidence: number,
     source: KnowledgeSource,
-    relatedFiles?: string[]
+    relatedFiles?: string[],
   ): Promise<void> {
     const state = await getOrCreate(root)
     const now = new Date().toISOString()
@@ -308,23 +339,23 @@ export namespace Epistemic {
   export async function removeWorkingFact(root: string, key: string): Promise<boolean> {
     const state = await getOrCreate(root)
     if (!state.workingFacts[key]) return false
-    
+
     delete state.workingFacts[key]
     await write(root, state)
-    
+
     Bus.publish(Event.Updated, { root, changeType: "fact_removed" })
     return true
   }
 
   export async function refreshFactConfidence(root: string, key: string): Promise<boolean> {
     const state = await getOrCreate(root)
-    
+
     const fact = state.workingFacts[key]
     if (!fact) return false
-    
+
     fact.lastValidated = new Date().toISOString()
     fact.confidence = Math.min(1, fact.confidence + 0.2) // Boost confidence on refresh
-    
+
     await write(root, state)
     return true
   }
@@ -332,7 +363,7 @@ export namespace Epistemic {
   function pruneLowestConfidence(state: EpistemicState): void {
     const facts = Object.entries(state.workingFacts)
     if (facts.length === 0) return
-    
+
     // Sort by confidence, remove lowest
     facts.sort((a, b) => a[1].confidence - b[1].confidence)
     const [lowestKey] = facts[0]
@@ -347,18 +378,18 @@ export namespace Epistemic {
     root: string,
     key: string,
     category: GoldenCategory,
-    reason: string
+    reason: string,
   ): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     // Check capacity
     if (Object.keys(state.goldenFacts).length >= state.settings.maxGoldenFacts) {
       throw new Error(`Golden facts at capacity (${state.settings.maxGoldenFacts}). Demote one first.`)
     }
-    
+
     // Can promote from working facts or assumptions
     let baseFact: BaseFact | null = null
-    
+
     if (state.workingFacts[key]) {
       baseFact = state.workingFacts[key]
       delete state.workingFacts[key]
@@ -373,11 +404,11 @@ export namespace Epistemic {
       }
       delete state.assumptions[key]
     }
-    
+
     if (!baseFact) {
       throw new Error(`Fact or assumption '${key}' not found`)
     }
-    
+
     const now = new Date().toISOString()
     state.goldenFacts[key] = {
       ...baseFact,
@@ -386,19 +417,19 @@ export namespace Epistemic {
       promotedAt: now,
       promotionReason: reason,
     }
-    
+
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "fact_added" })
   }
 
   export async function demoteFromGolden(root: string, key: string): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     const goldenFact = state.goldenFacts[key]
     if (!goldenFact) {
       throw new Error(`Golden fact '${key}' not found`)
     }
-    
+
     // Move to working facts
     const now = new Date().toISOString()
     state.workingFacts[key] = {
@@ -410,7 +441,7 @@ export namespace Epistemic {
       lastValidated: now,
       decayRate: state.settings.decayRatePerHour,
     }
-    
+
     delete state.goldenFacts[key]
     await write(root, state)
   }
@@ -421,14 +452,14 @@ export namespace Epistemic {
     value: unknown,
     category: GoldenCategory,
     reason: string,
-    source: KnowledgeSource = "user_stated"
+    source: KnowledgeSource = "user_stated",
   ): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     if (Object.keys(state.goldenFacts).length >= state.settings.maxGoldenFacts) {
       throw new Error(`Golden facts at capacity (${state.settings.maxGoldenFacts}). Demote one first.`)
     }
-    
+
     const now = new Date().toISOString()
     state.goldenFacts[key] = {
       key,
@@ -440,7 +471,7 @@ export namespace Epistemic {
       promotedAt: now,
       promotionReason: reason,
     }
-    
+
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "fact_added" })
   }
@@ -454,11 +485,11 @@ export namespace Epistemic {
     key: string,
     value: unknown,
     basis: string,
-    confidence: number = 0.5
+    confidence: number = 0.5,
   ): Promise<void> {
     const state = await getOrCreate(root)
     const now = new Date().toISOString()
-    
+
     state.assumptions[key] = {
       key,
       value,
@@ -467,19 +498,19 @@ export namespace Epistemic {
       needsValidation: true,
       createdAt: now,
     }
-    
+
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "assumption_added" })
   }
 
   export async function validateAssumption(root: string, key: string): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     const assumption = state.assumptions[key]
     if (!assumption) {
       throw new Error(`Assumption '${key}' not found`)
     }
-    
+
     // Promote to working fact
     const now = new Date().toISOString()
     state.workingFacts[key] = {
@@ -491,7 +522,7 @@ export namespace Epistemic {
       lastValidated: now,
       decayRate: state.settings.decayRatePerHour,
     }
-    
+
     delete state.assumptions[key]
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "fact_added" })
@@ -499,9 +530,9 @@ export namespace Epistemic {
 
   export async function invalidateAssumption(root: string, key: string): Promise<boolean> {
     const state = await getOrCreate(root)
-    
+
     if (!state.assumptions[key]) return false
-    
+
     delete state.assumptions[key]
     await write(root, state)
     return true
@@ -520,10 +551,10 @@ export namespace Epistemic {
     topic: string,
     importance: Importance,
     relatedGoals?: string[],
-    suggestedResolution?: string
+    suggestedResolution?: string,
   ): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     // Check if already exists
     const existing = state.unknowns.find((u) => u.topic === topic)
     if (existing) {
@@ -538,7 +569,7 @@ export namespace Epistemic {
       await write(root, state)
       return
     }
-    
+
     state.unknowns.push({
       topic,
       importance,
@@ -546,30 +577,30 @@ export namespace Epistemic {
       suggestedResolution,
       addedAt: new Date().toISOString(),
     })
-    
+
     // Sort by importance
     const importanceOrder = { critical: 0, high: 1, medium: 2, low: 3 }
     state.unknowns.sort((a, b) => importanceOrder[a.importance] - importanceOrder[b.importance])
-    
+
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "unknown_added" })
   }
 
   export async function resolveUnknown(root: string, topic: string, resolution: string): Promise<boolean> {
     const state = await getOrCreate(root)
-    
+
     const index = state.unknowns.findIndex((u) => u.topic === topic)
     if (index === -1) return false
-    
+
     // Optionally record the resolution as a fact
     const unknown = state.unknowns[index]
     state.unknowns.splice(index, 1)
-    
+
     // Add resolution as a working fact if it looks like a key-value
     if (resolution.includes("=") || resolution.includes(":")) {
       // Just remove the unknown, let user add fact separately
     }
-    
+
     await write(root, state)
     return true
   }
@@ -599,7 +630,7 @@ export namespace Epistemic {
       detect: (facts) => {
         const conflicts: Array<{ keys: string[]; description: string }> = []
         const byKey = new Map<string, BaseFact[]>()
-        
+
         for (const fact of Object.values(facts)) {
           const existing = byKey.get(fact.key)
           if (existing) {
@@ -608,7 +639,7 @@ export namespace Epistemic {
             byKey.set(fact.key, [fact])
           }
         }
-        
+
         for (const [key, factsForKey] of byKey) {
           if (factsForKey.length > 1) {
             const values = factsForKey.map((f) => f.value)
@@ -620,7 +651,7 @@ export namespace Epistemic {
             }
           }
         }
-        
+
         return conflicts
       },
     },
@@ -630,7 +661,7 @@ export namespace Epistemic {
       detect: (facts) => {
         const conflicts: Array<{ keys: string[]; description: string }> = []
         const versions = new Map<string, Array<{ key: string; version: string }>>()
-        
+
         for (const [key, fact] of Object.entries(facts)) {
           if (key.startsWith("dep.") && key.endsWith(".version")) {
             const depName = key.split(".")[1]
@@ -639,7 +670,7 @@ export namespace Epistemic {
             versions.set(depName, existing)
           }
         }
-        
+
         for (const [depName, versionFacts] of versions) {
           if (versionFacts.length > 1) {
             const uniqueVersions = [...new Set(versionFacts.map((v) => v.version))]
@@ -651,7 +682,7 @@ export namespace Epistemic {
             }
           }
         }
-        
+
         return conflicts
       },
     },
@@ -661,7 +692,7 @@ export namespace Epistemic {
       detect: (facts) => {
         const conflicts: Array<{ keys: string[]; description: string }> = []
         const existence = new Map<string, Array<{ key: string; exists: boolean }>>()
-        
+
         for (const [key, fact] of Object.entries(facts)) {
           if (key.startsWith("file.") && key.endsWith(".exists")) {
             const fileName = key.slice(5, -7) // Remove "file." and ".exists"
@@ -670,7 +701,7 @@ export namespace Epistemic {
             existence.set(fileName, existing)
           }
         }
-        
+
         for (const [fileName, existsFacts] of existence) {
           if (existsFacts.length > 1) {
             const hasTrue = existsFacts.some((e) => e.exists)
@@ -683,7 +714,7 @@ export namespace Epistemic {
             }
           }
         }
-        
+
         return conflicts
       },
     },
@@ -694,10 +725,10 @@ export namespace Epistemic {
       ...state.goldenFacts,
       ...state.workingFacts,
     }
-    
+
     const detected: Contradiction[] = []
     const existingKeys = new Set(state.contradictions.map((c) => c.factKeys.sort().join(",")))
-    
+
     for (const pattern of CONTRADICTION_PATTERNS) {
       const conflicts = pattern.detect(allFacts)
       for (const conflict of conflicts) {
@@ -714,17 +745,17 @@ export namespace Epistemic {
         }
       }
     }
-    
+
     return detected
   }
 
   async function detectAndRecordContradictions(root: string, state: EpistemicState): Promise<void> {
     const newContradictions = detectContradictions(state)
-    
+
     if (newContradictions.length > 0) {
       state.contradictions.push(...newContradictions)
       await write(root, state)
-      
+
       for (const contradiction of newContradictions) {
         Bus.publish(Event.ContradictionDetected, { contradiction })
       }
@@ -735,10 +766,10 @@ export namespace Epistemic {
     root: string,
     factKeys: string[],
     description: string,
-    severity: Severity
+    severity: Severity,
   ): Promise<void> {
     const state = await getOrCreate(root)
-    
+
     state.contradictions.push({
       id: ulid(),
       factKeys,
@@ -747,20 +778,20 @@ export namespace Epistemic {
       resolved: false,
       detectedAt: new Date().toISOString(),
     })
-    
+
     await write(root, state)
     Bus.publish(Event.Updated, { root, changeType: "contradiction_detected" })
   }
 
   export async function resolveContradiction(root: string, id: string, resolution: string): Promise<boolean> {
     const state = await getOrCreate(root)
-    
+
     const contradiction = state.contradictions.find((c) => c.id === id)
     if (!contradiction) return false
-    
+
     contradiction.resolved = true
     contradiction.resolution = resolution
-    
+
     await write(root, state)
     return true
   }
@@ -778,50 +809,50 @@ export namespace Epistemic {
     const now = Date.now()
     const lastCheck = Date.parse(state.lastDecayCheck)
     const hoursSinceCheck = (now - lastCheck) / (1000 * 60 * 60)
-    
+
     if (hoursSinceCheck < 0.1) {
       // Don't apply decay too frequently (min 6 minutes)
       return 0
     }
-    
+
     let prunedCount = 0
     const modifiedFilesSet = new Set(modifiedFiles)
-    
+
     for (const [key, fact] of Object.entries(state.workingFacts)) {
       const lastValidated = Date.parse(fact.lastValidated)
       const hoursSinceValidation = (now - lastValidated) / (1000 * 60 * 60)
-      
+
       // Base decay over time
       let decayAmount = fact.decayRate * hoursSinceValidation
-      
+
       // Extra decay if related files were modified
       if (fact.relatedFiles?.some((f) => modifiedFilesSet.has(f))) {
         decayAmount += 0.3 // Significant confidence hit
       }
-      
+
       fact.confidence = Math.max(0, fact.confidence - decayAmount)
-      
+
       // Prune facts that decay below threshold
       if (fact.confidence < state.settings.pruneThreshold) {
         delete state.workingFacts[key]
         prunedCount++
       }
     }
-    
+
     state.lastDecayCheck = new Date().toISOString()
     await write(root, state)
-    
+
     if (prunedCount > 0) {
       Bus.publish(Event.Updated, { root, changeType: "decay_applied" })
     }
-    
+
     return prunedCount
   }
 
   export async function pruneWorkingFacts(root: string, minConfidence?: number): Promise<number> {
     const state = await getOrCreate(root)
     const threshold = minConfidence ?? state.settings.pruneThreshold
-    
+
     let prunedCount = 0
     for (const [key, fact] of Object.entries(state.workingFacts)) {
       if (fact.confidence < threshold) {
@@ -829,11 +860,11 @@ export namespace Epistemic {
         prunedCount++
       }
     }
-    
+
     if (prunedCount > 0) {
       await write(root, state)
     }
-    
+
     return prunedCount
   }
 
@@ -844,20 +875,20 @@ export namespace Epistemic {
   export function getFactsByPattern(state: EpistemicState, pattern: string): BaseFact[] {
     const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$")
     const allFacts = { ...state.goldenFacts, ...state.workingFacts }
-    
+
     return Object.values(allFacts).filter((f) => regex.test(f.key))
   }
 
   export function getAllFacts(state: EpistemicState): Array<BaseFact & { tier: "golden" | "working" }> {
     const result: Array<BaseFact & { tier: "golden" | "working" }> = []
-    
+
     for (const fact of Object.values(state.goldenFacts)) {
       result.push({ ...fact, tier: "golden" })
     }
     for (const fact of Object.values(state.workingFacts)) {
       result.push({ ...fact, tier: "working" })
     }
-    
+
     return result
   }
 
@@ -899,7 +930,9 @@ export namespace Epistemic {
     const lines: string[] = ["## Knowledge State"]
 
     lines.push(`- Golden Facts: ${summary.goldenFactCount}/${summary.maxGoldenFacts}`)
-    lines.push(`- Working Facts: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% avg confidence)`)
+    lines.push(
+      `- Working Facts: ${summary.workingFactCount}/${summary.maxWorkingFacts} (${summary.avgConfidence}% avg confidence)`,
+    )
     lines.push(`- Assumptions: ${summary.assumptionCount} (${summary.unvalidatedCount} unvalidated)`)
     lines.push(`- Unknowns: ${summary.unknownCount} (${summary.criticalUnknowns} critical)`)
     lines.push(`- Contradictions: ${summary.contradictionCount}`)
@@ -935,7 +968,9 @@ export namespace Epistemic {
     const lines: string[] = ["## 7. Knowledge State"]
 
     lines.push(`- **Golden Facts:** ${summary.goldenFactCount}/${summary.maxGoldenFacts}`)
-    lines.push(`- **Working Facts:** ${summary.workingFactCount}/${summary.maxWorkingFacts} (avg confidence: ${summary.avgConfidence}%)`)
+    lines.push(
+      `- **Working Facts:** ${summary.workingFactCount}/${summary.maxWorkingFacts} (avg confidence: ${summary.avgConfidence}%)`,
+    )
     lines.push(`- **Assumptions:** ${summary.assumptionCount} (${summary.unvalidatedCount} unvalidated)`)
     lines.push(`- **Unknowns:** ${summary.unknownCount} (${summary.criticalUnknowns} critical)`)
     lines.push(`- **Contradictions:** ${summary.contradictionCount}`)
