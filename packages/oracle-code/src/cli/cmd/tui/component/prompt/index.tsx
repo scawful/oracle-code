@@ -27,6 +27,7 @@ import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { useToast } from "../../ui/toast"
 import { useAnalysisMode } from "@tui/context/analysis-mode"
 import { useKeyboardMode } from "@tui/context/keyboard-mode"
+import { useApprovalMode } from "@tui/context/approval-mode"
 
 export type PromptProps = {
   sessionID?: string
@@ -67,6 +68,7 @@ export function Prompt(props: PromptProps) {
   const { theme, syntax } = useTheme()
   const analysisMode = useAnalysisMode()
   const keyboardMode = useKeyboardMode()
+  const approvalMode = useApprovalMode()
 
   function promptModelWarning() {
     toast.show({
@@ -691,20 +693,27 @@ export function Prompt(props: PromptProps) {
                 syncExtmarksWithPromptParts()
               }}
               keyBindings={textareaKeybindings()}
-	              onKeyDown={async (e) => {
-	                // Skip if keyboard is owned by another component (e.g., AFS browser)
-	                if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
-	                  // Don't consume keys while another component owns the keyboard
-	                  // or when a modal is open (let global handlers / owners run).
-	                  try {
-	                    input.blur()
-	                  } catch {}
-	                  return
-	                }
-	                if (keybind.match("input_clear", e) && store.prompt.input !== "") {
-	                  input.clear()
-	                  input.extmarks.clear()
-	                  setStore("prompt", {
+              onKeyDown={async (e) => {
+                // Skip if keyboard is owned by another component (e.g., AFS browser)
+                if (props.disabled || dialog.stack.length > 0 || keyboardMode.isOwned) {
+                  // Don't consume keys while another component owns the keyboard
+                  // or when a modal is open (let global handlers / owners run).
+                  try {
+                    input.blur()
+                  } catch {}
+                  return
+                }
+                // Let command palette keybind through to global handlers
+                if (keybind.match("command_list", e)) {
+                  command.show()
+                  e.preventDefault()
+                  return
+                }
+                if (keybind.match("input_clear", e)) {
+                  e.preventDefault()
+                  input.clear()
+                  input.extmarks.clear()
+                  setStore("prompt", {
                     input: "",
                     parts: [],
                   })
@@ -933,37 +942,6 @@ export function Prompt(props: PromptProps) {
             <box gap={2} flexDirection="row">
               <Switch>
                 <Match when={store.mode === "normal"}>
-                  <text
-                    fg={
-                      analysisMode.isActive
-                        ? analysisMode.mode === "eval"
-                          ? theme.warning
-                          : analysisMode.mode === "tom"
-                            ? theme.info
-                            : analysisMode.mode === "critic"
-                              ? theme.error
-                              : theme.success
-                        : theme.text
-                    }
-                    onMouseDown={() => analysisMode.cycle(1)}
-                  >
-                    {keybind.print("analysis_cycle" as any)}{" "}
-                    <span
-                      style={{
-                        fg: analysisMode.isActive
-                          ? analysisMode.mode === "eval"
-                            ? theme.warning
-                            : analysisMode.mode === "tom"
-                              ? theme.info
-                              : analysisMode.mode === "critic"
-                                ? theme.error
-                                : theme.success
-                          : theme.textMuted,
-                      }}
-                    >
-                      {analysisMode.isActive ? analysisMode.modeInfo.shortName : "analysis"}
-                    </span>
-                  </text>
                   <text fg={theme.text}>
                     {keybind.print("agent_cycle")} <span style={{ fg: theme.textMuted }}>switch agent</span>
                   </text>

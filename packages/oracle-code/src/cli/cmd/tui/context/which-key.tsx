@@ -595,6 +595,9 @@ export const { use: useWhichKey, provider: WhichKeyProvider } = createSimpleCont
 
       /** Register an action handler */
       registerAction: registerWhichKeyAction,
+
+      /** Execute an action by ID */
+      executeAction,
     }
   },
 })

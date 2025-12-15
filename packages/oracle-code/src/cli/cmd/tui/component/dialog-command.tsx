@@ -11,6 +11,8 @@ import {
 } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { useKeybind } from "@tui/context/keybind"
+import { useWhichKey, type WhichKeyNode } from "@tui/context/which-key"
+import { useApprovalMode } from "@tui/context/approval-mode"
 import type { KeybindsConfig } from "@oracle-code/sdk/v2"
 
 type Context = ReturnType<typeof init>
@@ -26,16 +28,74 @@ function init() {
   const [suspendCount, setSuspendCount] = createSignal(0)
   const dialog = useDialog()
   const keybind = useKeybind()
+  const whichKey = useWhichKey()
+  const approval = useApprovalMode()
+
+  // Flatten which-key tree into command options
+  const whichKeyCommands = createMemo(() => {
+    const commands: CommandOption[] = []
+
+    function traverse(nodes: WhichKeyNode[], path: string[] = []) {
+      for (const node of nodes) {
+        if (node.children) {
+          traverse(node.children, [...path, node.label.replace(/^\+/, "")])
+        } else {
+          // Leaf node - add as command
+          const category =
+            path.length > 0 ? path.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" > ") : "General"
+
+          commands.push({
+            title: node.label,
+            category,
+            value: node.action ?? node.keybind ?? `which-key.${path.join(".")}.${node.label}`,
+            keybind: node.keybind as any,
+            onSelect: (dialog) => {
+              if (node.action) {
+                whichKey.executeAction(node.action)
+              }
+              dialog.clear()
+            },
+          })
+        }
+      }
+    }
+
+    traverse(whichKey.tree)
+    return commands
+  })
+
   const options = createMemo(() => {
     const all = registrations().flatMap((x) => x())
+
+    // Add Approval Mode toggle
+    const approvalCommand: CommandOption = {
+      title: `Toggle Approval Mode (Current: ${approval.modeInfo.name})`,
+      category: "System",
+      value: "approval.toggle",
+      keybind: "analysis_cycle" as any, // Reusing Ctrl+A
+      onSelect: (d) => {
+        approval.cycle()
+        d.clear()
+      },
+    }
+
+    // Merge which-key commands
+    // We need to deduplicate based on value/title to avoid double entries
+    // since app.tsx registers many commands that are also in which-key
+    const existingValues = new Set(all.map((x) => x.value))
+    const uniqueWhichKeyCommands = whichKeyCommands().filter((x) => !existingValues.has(x.value))
+
     const suggested = all.filter((x) => x.suggested)
+
     return [
       ...suggested.map((x) => ({
         ...x,
         category: "Suggested",
         value: "suggested." + x.value,
       })),
+      approvalCommand,
       ...all,
+      ...uniqueWhichKeyCommands,
     ].map((x) => ({
       ...x,
       footer: x.keybind ? keybind.print(x.keybind) : undefined,
