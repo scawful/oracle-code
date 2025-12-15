@@ -42,6 +42,7 @@ export type PaneViewType =
   | "messages" // Messages buffer (*Messages* like Emacs)
   | "cognitive" // Cognitive state dashboard
   | "hivemind" // Hivemind cross-session learning
+  | "knowledge" // Unified knowledge view (hivemind + ToM + epistemic)
   | "state" // Shared state editor
   | "plan" // Plan.md editor
 
@@ -1232,7 +1233,8 @@ export const { use: usePanes, provider: PanesProvider } = createSimpleContext({
 
       // Reset to first leaf pane and restore history if available
       const leaves = collectLeavesWithBounds(migratedRoot)
-      const history = workspace.history && workspace.history.length > 0 ? workspace.history : leaves.map((l) => l.pane.id)
+      const history =
+        workspace.history && workspace.history.length > 0 ? workspace.history : leaves.map((l) => l.pane.id)
       setStore("history", history)
       setStore("activeId", history[history.length - 1] ?? leaves[0]?.pane.id ?? "main")
 

@@ -2,26 +2,45 @@ import { createSignal, Show, For } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useKV } from "../context/kv"
 
-// View types available in sidebar
+/**
+ * Sidebar View Types (Consolidated for v0.3)
+ *
+ * Previous views: summary, cognitive, agents, afs, state, hivemind, metrics, tom
+ * Consolidated to: summary, cognitive, knowledge, agents, afs, state
+ *
+ * - "knowledge" combines hivemind + ToM + epistemic facts
+ * - "agents" combines agent lanes + orchestration + metrics
+ * - "cognitive" focuses on health, mood, warnings, analysis mode
+ */
 export type SidebarViewType =
-  | "summary" // Default: session summary (original sidebar content)
-  | "cognitive" // Cognitive state dashboard
-  | "agents" // Agent lanes and status
+  | "summary" // Default: session summary (tokens, todos, files)
+  | "cognitive" // Health, mood, warnings, analysis mode
+  | "knowledge" // Hivemind + ToM facts + epistemic state
+  | "agents" // Agent lanes + orchestration strategy + metrics
   | "afs" // AFS browser
   | "state" // Shared state
-  | "hivemind" // Hivemind entries
-  | "metrics" // Coordination metrics
-  | "tom" // Theory of mind
 
 const VIEW_LABELS: Record<SidebarViewType, string> = {
   summary: "Summary",
   cognitive: "Cognitive",
+  knowledge: "Knowledge",
   agents: "Agents",
   afs: "AFS",
   state: "State",
-  hivemind: "Hivemind",
-  metrics: "Metrics",
-  tom: "ToM",
+}
+
+// Legacy view type aliases for backwards compatibility
+export type LegacySidebarViewType = "hivemind" | "metrics" | "tom"
+export function migrateLegacyView(view: string): SidebarViewType {
+  switch (view) {
+    case "hivemind":
+    case "tom":
+      return "knowledge"
+    case "metrics":
+      return "agents"
+    default:
+      return view as SidebarViewType
+  }
 }
 
 interface SidebarHeaderProps {
@@ -36,7 +55,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
   const { theme } = useTheme()
   const [dropdownOpen, setDropdownOpen] = createSignal(false)
 
-  const views: SidebarViewType[] = ["summary", "cognitive", "agents", "afs", "state", "hivemind", "metrics", "tom"]
+  const views: SidebarViewType[] = ["summary", "cognitive", "knowledge", "agents", "afs", "state"]
 
   return (
     <box position="relative" flexShrink={0}>
@@ -100,15 +119,17 @@ export function useSidebarView(side: "left" | "right" = "right") {
   const key = `tui.sidebar.${side}.view`
   const defaultView: SidebarViewType = side === "right" ? "summary" : "afs"
 
-  const [view, setViewRaw] = kv.signal<SidebarViewType>(key, defaultView)
+  const [rawView, setViewRaw] = kv.signal<string>(key, defaultView)
+
+  // Migrate legacy views to new consolidated views
+  const view = () => migrateLegacyView(rawView())
 
   function setView(v: SidebarViewType) {
-    // KV signal setter expects a Setter function or value
     setViewRaw(() => v)
   }
 
   return {
-    view: view as () => SidebarViewType,
+    view,
     setView,
   }
 }

@@ -11,14 +11,12 @@ import { AFSPanel } from "../../component/panel-afs"
 import { AgentsPanel } from "../../component/panel-agents"
 import { StatePanel } from "../../component/panel-state"
 import { CognitivePanel } from "../../component/panel-cognitive"
-import { OrchestrationPanel } from "../../component/panel-orchestration"
+import { KnowledgePanel } from "../../component/panel-knowledge"
 import { SidebarHeader, useSidebarView, type SidebarViewType } from "../../component/sidebar-slot"
 import { CognitiveView } from "../../component/views/cognitive-view"
 import { AgentsView } from "../../component/views/agents-view"
 import { StateView } from "../../component/views/state-view"
-import { HivemindView } from "../../component/views/hivemind-view"
-import { MetricsView } from "../../component/views/metrics-view"
-import { ToMView } from "../../component/views/tom-view"
+import { KnowledgeView } from "../../component/views/knowledge-view"
 import { AFSView } from "../../component/views/afs-view"
 import { usePanes } from "../../context/panes"
 
@@ -108,6 +106,10 @@ export function Sidebar(props: { sessionID: string }) {
             <Match when={sidebarView() === "cognitive"}>
               <CognitiveView paneId="sidebar-right" />
             </Match>
+            <Match when={sidebarView() === "knowledge"}>
+              {/* Knowledge view: combines hivemind + ToM + epistemic */}
+              <KnowledgeView paneId="sidebar-right" />
+            </Match>
             <Match when={sidebarView() === "agents"}>
               <AgentsView />
             </Match>
@@ -116,15 +118,6 @@ export function Sidebar(props: { sessionID: string }) {
             </Match>
             <Match when={sidebarView() === "state"}>
               <StateView paneId="sidebar-right" />
-            </Match>
-            <Match when={sidebarView() === "hivemind"}>
-              <HivemindView paneId="sidebar-right" />
-            </Match>
-            <Match when={sidebarView() === "metrics"}>
-              <MetricsView />
-            </Match>
-            <Match when={sidebarView() === "tom"}>
-              <ToMView />
             </Match>
           </Switch>
         </scrollbox>
@@ -206,20 +199,15 @@ export function LeftSidebar(props: { sessionID: string }) {
           <Match when={sidebarView() === "cognitive"}>
             <CognitiveView paneId="sidebar-left" />
           </Match>
+          <Match when={sidebarView() === "knowledge"}>
+            {/* Knowledge view: combines hivemind + ToM + epistemic */}
+            <KnowledgeView paneId="sidebar-left" />
+          </Match>
           <Match when={sidebarView() === "agents"}>
             <AgentsView />
           </Match>
           <Match when={sidebarView() === "state"}>
             <StateView paneId="sidebar-left" />
-          </Match>
-          <Match when={sidebarView() === "hivemind"}>
-            <HivemindView paneId="sidebar-left" />
-          </Match>
-          <Match when={sidebarView() === "metrics"}>
-            <MetricsView />
-          </Match>
-          <Match when={sidebarView() === "tom"}>
-            <ToMView />
           </Match>
           {/* Summary view shows AFS by default for left sidebar */}
           <Match when={sidebarView() === "summary"}>
@@ -425,10 +413,10 @@ function SummarySidebarContent(props: {
         </box>
       </Show>
       {/* Compact panels for quick access */}
-      <AFSPanel />
-      <AgentsPanel />
-      <OrchestrationPanel />
       <CognitivePanel />
+      <KnowledgePanel />
+      <AgentsPanel />
+      <AFSPanel />
       <StatePanel />
     </box>
   )

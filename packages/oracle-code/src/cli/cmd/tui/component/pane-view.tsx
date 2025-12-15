@@ -186,6 +186,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       messages: "󰍡",
       cognitive: "󰠭",
       hivemind: "󰛶",
+      knowledge: "󰛶",
       state: "󰈙",
       plan: "󰙅",
     }
@@ -206,6 +207,7 @@ function TabBar(props: { tabs: PaneTab[]; activeIndex: number; isActive: boolean
       messages: "Messages",
       cognitive: "Cognitive",
       hivemind: "Hivemind",
+      knowledge: "Knowledge",
       state: "State",
       plan: "Plan",
     }
@@ -274,6 +276,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       messages: "Messages",
       cognitive: "Cognitive",
       hivemind: "Hivemind",
+      knowledge: "Knowledge",
       state: "State",
       plan: "Plan",
     }
@@ -293,6 +296,7 @@ function PaneHeader(props: { viewType: PaneViewType; isActive: boolean; isMaximi
       messages: "󰍡",
       cognitive: "󰠭",
       hivemind: "󰛶",
+      knowledge: "󰛶",
       state: "󰈙",
       plan: "󰙅",
     }
@@ -494,6 +498,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       messages: "󰍡",
       cognitive: "󰠭",
       hivemind: "󰛶",
+      knowledge: "󰛶",
       state: "󰈙",
       plan: "󰙅",
     }
@@ -513,6 +518,7 @@ function FloatingPaneHeader(props: { pane: PaneLeaf; isActive: boolean }) {
       messages: "Messages",
       cognitive: "Cognitive",
       hivemind: "Hivemind",
+      knowledge: "Knowledge",
       state: "State",
       plan: "Plan",
     }

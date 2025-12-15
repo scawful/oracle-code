@@ -1,11 +1,8 @@
-import { Show, createMemo, createSignal, createResource, createEffect, For } from "solid-js"
+import { Show, createMemo, createSignal, For } from "solid-js"
 import { useCognitive } from "../context/cognitive"
-import { useToM } from "../context/tom"
 import { useTheme } from "../context/theme"
 import { usePanes } from "../context/panes"
 import { useAnalysisMode } from "../context/analysis-mode"
-import { HivemindStore } from "@/cognitive/hivemind/store"
-import { useSync } from "../context/sync"
 
 /**
  * Cognitive Protocol panel for sidebar (42 chars wide)
@@ -15,63 +12,11 @@ import { useSync } from "../context/sync"
  */
 export function CognitivePanel() {
   const cognitive = useCognitive()
-  const tom = useToM()
   const { theme } = useTheme()
   const panes = usePanes()
-  const sync = useSync()
   const analysisMode = useAnalysisMode()
 
   const [expanded, setExpanded] = createSignal(true)
-
-  // Track context root reactively - use sync status to ensure path is loaded
-  // Access sync.data.status directly (not via getter) to ensure Solid tracks the dependency
-  const contextRoot = createMemo(() => {
-    // Access sync data directly to ensure we wait for bootstrap completion
-    if (sync.data.status !== "complete") return null
-    return sync.data.path.directory || sync.data.path.worktree || null
-  })
-
-  // Load hivemind state - use contextRoot as source so it re-fetches when path changes
-  const [hivemindState, { refetch: refetchHivemind }] = createResource(contextRoot, async (root) => {
-    try {
-      if (!root) return null
-      return await HivemindStore.getState(root, "project")
-    } catch {
-      return null
-    }
-  })
-
-  // Refresh hivemind when cognitive updates
-  createEffect(() => {
-    if (cognitive.data.lastUpdated && contextRoot()) {
-      refetchHivemind()
-    }
-  })
-
-  // Hivemind counts
-  const hivemindTotal = createMemo(() => {
-    const state = hivemindState()
-    if (!state) return 0
-    return (
-      state.fears.length +
-      state.satisfactions.length +
-      state.knowledge.length +
-      state.decisions.length +
-      state.preferences.length
-    )
-  })
-
-  const hivemindGolden = createMemo(() => {
-    const state = hivemindState()
-    if (!state) return 0
-    return [
-      ...state.fears,
-      ...state.satisfactions,
-      ...state.knowledge,
-      ...state.decisions,
-      ...state.preferences,
-    ].filter((e) => e.status === "golden").length
-  })
 
   // Health status line
   const healthLine = createMemo(() => {
@@ -115,17 +60,9 @@ export function CognitivePanel() {
     return `${analysisMode.modeInfo.shortName} mode active`
   })
 
-  // Navigation helpers
+  // Navigation helper
   function openCognitive() {
     panes.split("vertical", "cognitive")
-  }
-
-  function openHivemind() {
-    panes.split("vertical", "hivemind")
-  }
-
-  function openToM() {
-    panes.split("vertical", "tom")
   }
 
   return (
@@ -192,20 +129,6 @@ export function CognitivePanel() {
             </box>
           </Show>
 
-          {/* ─ Knowledge ─ */}
-          <Show when={cognitive.hasEpistemicData || tom.commonGround.sharedFacts.length > 0}>
-            <text fg={theme.textMuted} marginTop={1}>
-              ─ Knowledge
-            </text>
-            <box paddingLeft={1} flexDirection="column">
-              <text fg={theme.warning}>★ {cognitive.goldenFactCount} golden</text>
-              <text fg={theme.info}>○ {cognitive.workingFactCount} working</text>
-              <Show when={tom.commonGround.sharedFacts.length > 0}>
-                <text fg={theme.success}>⊕ {tom.commonGround.sharedFacts.length} shared</text>
-              </Show>
-            </box>
-          </Show>
-
           {/* ─ Emotions ─ */}
           <Show when={cognitive.totalEmotionCount > 0}>
             <text fg={theme.textMuted} marginTop={1}>
@@ -227,19 +150,6 @@ export function CognitivePanel() {
             </box>
           </Show>
 
-          {/* ─ Hivemind ─ */}
-          <Show when={hivemindTotal() > 0}>
-            <text fg={theme.textMuted} marginTop={1}>
-              ─ Hivemind
-            </text>
-            <box paddingLeft={1} onMouseDown={openHivemind}>
-              <text fg={theme.primary}>🧠 {hivemindTotal()} entries</text>
-              <Show when={hivemindGolden() > 0}>
-                <text fg={theme.warning}> (★{hivemindGolden()})</text>
-              </Show>
-            </box>
-          </Show>
-
           {/* ─ Goals ─ */}
           <Show when={cognitive.primaryGoal}>
             <text fg={theme.textMuted} marginTop={1}>
@@ -254,21 +164,6 @@ export function CognitivePanel() {
                 <text fg={theme.textMuted}>
                   {cognitive.completedSubgoals}/{cognitive.totalSubgoals} subgoals
                 </text>
-              </Show>
-            </box>
-          </Show>
-
-          {/* ─ ToM ─ */}
-          <Show when={Object.keys(tom.beliefStates).length > 1}>
-            <text fg={theme.textMuted} marginTop={1}>
-              ─ Theory of Mind
-            </text>
-            <box paddingLeft={1} onMouseDown={openToM}>
-              <text fg={tom.syncStatus === "synchronized" ? theme.success : theme.warning}>
-                {tom.syncStatus === "synchronized" ? "●" : "◐"} {Object.keys(tom.beliefStates).length} agents
-              </text>
-              <Show when={tom.divergenceCount > 0}>
-                <text fg={theme.warning}> Δ{tom.divergenceCount}</text>
               </Show>
             </box>
           </Show>
