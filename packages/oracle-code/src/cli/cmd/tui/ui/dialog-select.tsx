@@ -91,9 +91,12 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   })
 
   const dimensions = useTerminalDimensions()
-  const height = createMemo(() =>
-    Math.min(flat().length + grouped().length * 2 - 1, Math.floor(dimensions().height / 2) - 6),
-  )
+  const height = createMemo(() => {
+    const rows = flat().length + grouped().length * 2 - 1
+    const max = Math.floor(dimensions().height / 2) - 6
+    // Clamp to keep a visible box even when there are 0 options
+    return Math.max(3, Math.min(rows > 0 ? rows : 3, max > 0 ? max : 3))
+  })
 
   const selected = createMemo(() => flat()[store.selected])
 
@@ -117,11 +120,15 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     moveTo(next)
   }
 
+  const findFlatIndex = (value: any) => flat().findIndex((opt) => isDeepEqual(opt.value, value))
+
   function moveTo(next: number) {
     setStore("selected", next)
-    props.onMove?.(selected()!)
+    const option = flat()[next]
+    if (!option) return
+    props.onMove?.(option)
     const target = scroll.getChildren().find((child) => {
-      return child.id === JSON.stringify(selected()?.value)
+      return child.id === JSON.stringify(option.value)
     })
     if (!target) return
     const y = target.y - scroll.y
@@ -177,8 +184,8 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const keybinds = createMemo(() => props.keybind?.filter((x) => !x.disabled) ?? [])
 
   return (
-    <box gap={1} paddingBottom={1}>
-      <box paddingLeft={4} paddingRight={4}>
+    <box gap={1} paddingBottom={1} paddingLeft={2} paddingRight={2}>
+      <box paddingLeft={1} paddingRight={1}>
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.text} attributes={TextAttributes.BOLD}>
             {props.title}
@@ -234,15 +241,18 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
                         props.onSelect?.(option)
                       }}
                       onMouseOver={() => {
-                        const index = filtered().findIndex((x) => isDeepEqual(x.value, option.value))
+                        const index = findFlatIndex(option.value)
                         if (index === -1) return
                         moveTo(index)
                       }}
-                      backgroundColor={active() ? (option.bg ?? theme.primary) : RGBA.fromInts(0, 0, 0, 0)}
-                      paddingLeft={current() ? 1 : 3}
-                      paddingRight={3}
+                      backgroundColor={active() ? (option.bg ?? theme.backgroundElement) : RGBA.fromInts(0, 0, 0, 0)}
+                      paddingLeft={1}
+                      paddingRight={2}
                       gap={1}
                     >
+                      <text fg={active() ? theme.accent : theme.border} flexShrink={0}>
+                        {active() ? "▌" : " "}
+                      </text>
                       <Option
                         title={option.title}
                         footer={option.footer}
@@ -290,17 +300,17 @@ function Option(props: {
   return (
     <>
       <Show when={props.current}>
-        <text flexShrink={0} fg={props.active ? fg : props.current ? theme.primary : theme.text} marginRight={0.5}>
+        <text flexShrink={0} fg={props.active ? fg : props.current ? theme.accent : theme.text} marginRight={0.5}>
           ●
         </text>
       </Show>
       <text
         flexGrow={1}
-        fg={props.active ? fg : props.current ? theme.primary : theme.text}
+        fg={props.active ? theme.text : props.current ? theme.accent : theme.text}
         attributes={props.active ? TextAttributes.BOLD : undefined}
         overflow="hidden"
         wrapMode="word"
-        paddingLeft={3}
+        paddingLeft={1}
       >
         {Locale.truncate(props.title, 62)}
         <Show when={props.description}>

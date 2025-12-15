@@ -8,13 +8,14 @@ import { useToast } from "./toast"
 
 export function Dialog(
   props: ParentProps<{
-    size?: "medium" | "large"
+    size?: "medium" | "large" | "palette"
     onClose: () => void
   }>,
 ) {
   const dimensions = useTerminalDimensions()
   const { theme } = useTheme()
   const renderer = useRenderer()
+  const isPalette = props.size === "palette"
 
   return (
     <box
@@ -24,22 +25,28 @@ export function Dialog(
       }}
       width={dimensions().width}
       height={dimensions().height}
-      alignItems="center"
       position="absolute"
-      paddingTop={dimensions().height / 4}
       left={0}
       top={0}
-      backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
+      paddingTop={isPalette ? 0 : dimensions().height / 4}
+      paddingBottom={isPalette ? 0 : undefined}
+      backgroundColor={isPalette ? RGBA.fromInts(0, 0, 0, 0) : RGBA.fromInts(0, 0, 0, 150)}
+      flexDirection="column"
+      justifyContent={isPalette ? "flex-end" : undefined}
+      alignItems={isPalette ? "stretch" : "center"}
     >
       <box
         onMouseUp={async (e) => {
           if (renderer.getSelection()) return
           e.stopPropagation()
         }}
-        width={props.size === "large" ? 80 : 60}
-        maxWidth={dimensions().width - 2}
+        width={isPalette ? dimensions().width : props.size === "large" ? 80 : 60}
+        maxWidth={isPalette ? dimensions().width : dimensions().width - 2}
+        border={isPalette ? ["top"] : undefined}
+        borderColor={isPalette ? theme.border : undefined}
         backgroundColor={theme.backgroundPanel}
-        paddingTop={1}
+        paddingTop={isPalette ? 0 : 1}
+        paddingBottom={isPalette ? 1 : 0}
       >
         {props.children}
       </box>
@@ -53,7 +60,7 @@ function init() {
       element: JSX.Element
       onClose?: () => void
     }[],
-    size: "medium" as "medium" | "large",
+    size: "medium" as "medium" | "large" | "palette",
   })
 
   useKeyboard((evt) => {
@@ -117,7 +124,7 @@ function init() {
     get size() {
       return store.size
     },
-    setSize(size: "medium" | "large") {
+    setSize(size: "medium" | "large" | "palette") {
       setStore("size", size)
     },
   }

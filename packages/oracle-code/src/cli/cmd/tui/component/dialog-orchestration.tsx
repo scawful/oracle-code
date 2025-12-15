@@ -32,41 +32,38 @@ export function DialogOrchestration() {
     {
       mode: "vim-navigation",
       priority: 100,
-      onKey: (evt) => {
-        handleKeyboard(evt)
-        return true
-      },
+      onKey: (evt) => handleKeyboard(evt),
     },
     keyboard,
   )
 
-  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }) {
+  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }): boolean {
     switch (evt.name) {
       case "q":
       case "escape":
         dialog.clear()
-        break
+        return true
 
       case "j":
       case "down":
         setCursorIndex((i) => Math.min(i + 1, menuItems.length - 1))
-        break
+        return true
 
       case "k":
       case "up":
         setCursorIndex((i) => Math.max(i - 1, 0))
-        break
+        return true
 
       case "l":
       case "right":
       case "return":
         handleSelect()
-        break
+        return true
 
       case "h":
       case "left":
         handleDeselect()
-        break
+        return true
 
       case "1":
       case "2":
@@ -76,8 +73,10 @@ export function DialogOrchestration() {
         // Quick jump to menu item
         const idx = parseInt(evt.name) - 1
         if (idx < menuItems.length) setCursorIndex(idx)
-        break
+        return true
     }
+
+    return false
   }
 
   function handleSelect() {

@@ -7,6 +7,9 @@ import { TextareaRenderable, type ParsedKey, type Renderable } from "@opentui/co
 import { createStore } from "solid-js/store"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { createSimpleContext } from "./helper"
+import { Log } from "@/util/log"
+
+const log = Log.create({ service: "keybind" })
 
 /**
  * Callback type for which-key integration
@@ -60,6 +63,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     }
 
     useKeyboard(async (evt) => {
+      log.debug("key event", { name: evt.name, ctrl: evt.ctrl, leader: store.leader, prevented: evt.defaultPrevented })
       if (evt.defaultPrevented) return
       if (!store.leader) {
         const leaderBindings = keybinds().leader ?? []

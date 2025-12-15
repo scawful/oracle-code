@@ -233,6 +233,18 @@ function WhichKeyConnector() {
   const command = useCommandDialog()
   const dialog = useDialog()
   const toast = useToast()
+  const isCtrlP = (evt: { name?: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) => {
+    const name = evt.name ?? ""
+    return evt.ctrl && !evt.meta && !evt.shift && (name === "p" || name === "P" || name === "\u0010")
+  }
+
+  // Global catch-all for command palette (Ctrl+P) with highest priority.
+  useKeyboard((evt) => {
+    if (isCtrlP(evt)) {
+      evt.preventDefault()
+      command.show()
+    }
+  })
 
   onMount(() => {
     // Wire up which-key to keybind

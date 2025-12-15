@@ -2,6 +2,9 @@ import { createStore } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { onMount, onCleanup } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
+import { Log } from "@/util/log"
+
+const log = Log.create({ service: "keyboard-mode" })
 
 /**
  * Keyboard modes for different interaction contexts
@@ -49,7 +52,18 @@ export const { use: useKeyboardMode, provider: KeyboardModeProvider } = createSi
 
     // Global keyboard listener that dispatches to active owner
     useKeyboard((evt) => {
+      // Only log ctrl key combos to avoid spam
+      if (evt.ctrl) {
+        log.info("ctrl key", { name: evt.name, activeOwner: store.activeOwner, prevented: evt.defaultPrevented })
+      }
+
+      // Let global shortcuts (e.g., command palette Ctrl+P) bubble through even if someone else prevented
+      if (evt.ctrl && !evt.meta && !evt.shift && evt.name === "p") {
+        return
+      }
+
       if (evt.defaultPrevented) return
+
       if (!store.activeOwner) return
       const owner = store.owners.find((o) => o.id === store.activeOwner)
       if (!owner) return
@@ -59,6 +73,9 @@ export const { use: useKeyboardMode, provider: KeyboardModeProvider } = createSi
         shift: evt.shift,
         meta: evt.meta,
       })
+      if (evt.ctrl) {
+        log.info("owner result", { handled, owner: owner.id })
+      }
       if (handled) evt.preventDefault()
     })
 

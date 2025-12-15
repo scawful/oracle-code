@@ -52,50 +52,47 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
     {
       mode: "vim-navigation",
       priority: 100,
-      onKey: (evt) => {
-        handleKeyboard(evt)
-        return true
-      },
+      onKey: (evt) => handleKeyboard(evt),
     },
     keyboard
   )
 
-  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }) {
+  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }): boolean {
     switch (evt.name) {
       case "q":
       case "escape":
         dialog.clear()
-        break
+        return true
 
       case "j":
       case "down":
         setCursorIndex((i) => Math.min(i + 1, Math.max(0, currentEntries().length - 1)))
-        break
+        return true
 
       case "k":
       case "up":
         setCursorIndex((i) => Math.max(i - 1, 0))
-        break
+        return true
 
       case "h":
       case "left":
         cycleTab(-1)
-        break
+        return true
 
       case "l":
       case "right":
         cycleTab(1)
-        break
+        return true
 
       case "tab":
         cycleTab(1)
-        break
+        return true
 
       case "r":
         // Refresh
         setRefreshTrigger((t) => t + 1)
         refetch()
-        break
+        return true
 
       case "1":
       case "2":
@@ -109,8 +106,10 @@ export function DialogHivemind(props: { initialTab?: TabName }) {
           setActiveTab(tabs[idx])
           setCursorIndex(0)
         }
-        break
+        return true
     }
+
+    return false
   }
 
   function cycleTab(direction: 1 | -1) {

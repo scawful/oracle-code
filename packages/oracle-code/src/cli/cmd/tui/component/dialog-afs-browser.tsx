@@ -38,10 +38,7 @@ export function DialogAFSBrowser() {
     {
       mode: "vim-navigation",
       priority: 100,
-      onKey: (evt) => {
-        handleKeyboard(evt)
-        return true // Always consume the event
-      },
+      onKey: (evt) => handleKeyboard(evt),
     },
     keyboard,
   )
@@ -228,20 +225,19 @@ export function DialogAFSBrowser() {
   }
 
   // Keyboard handler called via keyboard mode API
-  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) {
+  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean }): boolean {
     // Reset g pending on any key except g
     if (evt.name !== "g" && gPending()) {
       setGPending(false)
     }
 
     if (viewMode() === "tree") {
-      handleTreeKeyboard(evt)
-    } else {
-      handleFileKeyboard(evt)
+      return handleTreeKeyboard(evt)
     }
+    return handleFileKeyboard(evt)
   }
 
-  function handleTreeKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }) {
+  function handleTreeKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }): boolean {
     const items = treeItems()
     const idx = cursorIndex()
     const item = items[idx]
@@ -251,26 +247,26 @@ export function DialogAFSBrowser() {
       case "q":
       case "escape":
         dialog.clear()
-        return
+        return true
 
       case "r":
         afs.refresh()
-        return
+        return true
     }
 
     // Return early if no items
-    if (items.length === 0) return
+    if (items.length === 0) return false
 
     switch (evt.name) {
       case "j":
       case "down":
         if (idx < items.length - 1) setCursorIndex(idx + 1)
-        break
+        return true
 
       case "k":
       case "up":
         if (idx > 0) setCursorIndex(idx - 1)
-        break
+        return true
 
       case "g":
         if (gPending()) {
@@ -290,11 +286,11 @@ export function DialogAFSBrowser() {
             gPendingTimeout = null
           }, 1000)
         }
-        break
+        return true
 
       case "G":
         setCursorIndex(items.length - 1)
-        break
+        return true
 
       case "h":
       case "left":
@@ -308,7 +304,7 @@ export function DialogAFSBrowser() {
           const parentIdx = items.findIndex((i) => i.path === parentPath)
           if (parentIdx >= 0) setCursorIndex(parentIdx)
         }
-        break
+        return true
 
       case "l":
       case "right":
@@ -323,7 +319,7 @@ export function DialogAFSBrowser() {
         } else if (item?.type === "file") {
           loadFile(item.path)
         }
-        break
+        return true
 
       case "return":
       case "o":
@@ -334,18 +330,20 @@ export function DialogAFSBrowser() {
         } else if (item?.type === "file") {
           loadFile(item.path)
         }
-        break
+        return true
 
       case "space":
         if (item?.type === "directory") {
           const spaceKey = item.depth === 0 ? item.name : item.path
           setExpanded(spaceKey, !expanded[spaceKey])
         }
-        break
+        return true
     }
+
+    return false
   }
 
-  function handleFileKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }) {
+  function handleFileKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }): boolean {
     const lines = fileContent().split("\n")
     const maxScroll = Math.max(0, lines.length - 20)
 
@@ -357,33 +355,35 @@ export function DialogAFSBrowser() {
       case "left":
         setViewMode("tree")
         setSelectedFile(null)
-        break
+        return true
 
       case "j":
       case "down":
         setScrollOffset((s) => Math.min(s + 1, maxScroll))
-        break
+        return true
 
       case "k":
       case "up":
         setScrollOffset((s) => Math.max(s - 1, 0))
-        break
+        return true
 
       case "d":
         if (evt.ctrl) {
           setScrollOffset((s) => Math.min(s + 10, maxScroll))
+          return true
         }
-        break
+        return false
 
       case "u":
         if (evt.ctrl) {
           setScrollOffset((s) => Math.max(s - 10, 0))
+          return true
         }
-        break
+        return false
 
       case "G":
         setScrollOffset(maxScroll)
-        break
+        return true
 
       case "g":
         if (gPending()) {
@@ -401,7 +401,7 @@ export function DialogAFSBrowser() {
             gPendingTimeout = null
           }, 1000)
         }
-        break
+        return true
 
       case "m":
         if (fileViewMode() === "markdown") {
@@ -409,7 +409,7 @@ export function DialogAFSBrowser() {
         } else if (fileViewMode() === "text" && selectedFile()?.endsWith(".md")) {
           setFileViewMode("markdown")
         }
-        break
+        return true
 
       case "x":
         if (fileViewMode() === "hex") {
@@ -417,8 +417,10 @@ export function DialogAFSBrowser() {
         } else {
           setFileViewMode("hex")
         }
-        break
+        return true
     }
+
+    return false
   }
 
   const totalFiles = createMemo(() => afs.directories.reduce((sum, d) => sum + d.fileCount, 0))

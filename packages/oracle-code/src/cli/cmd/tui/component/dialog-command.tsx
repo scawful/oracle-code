@@ -14,6 +14,9 @@ import { useKeybind } from "@tui/context/keybind"
 import { useWhichKey, type WhichKeyNode } from "@tui/context/which-key"
 import { useApprovalMode } from "@tui/context/approval-mode"
 import type { KeybindsConfig } from "@oracle-code/sdk/v2"
+import { Log } from "@/util/log"
+
+const log = Log.create({ service: "dialog-command" })
 
 type Context = ReturnType<typeof init>
 const ctx = createContext<Context>()
@@ -119,6 +122,7 @@ function init() {
       for (const option of options()) {
         // Match by value or keybind name (for which-key integration)
         if (option.value === name || option.keybind === name) {
+          dialog.setSize("palette")
           option.onSelect?.(dialog, source)
           return
         }
@@ -129,6 +133,7 @@ function init() {
     },
     suspended,
     show() {
+      dialog.setSize("palette")
       dialog.replace(() => <DialogCommand options={options()} />)
     },
     register(cb: () => CommandOption[]) {
@@ -157,23 +162,39 @@ export function CommandProvider(props: ParentProps) {
   const value = init()
   const dialog = useDialog()
   const keybind = useKeybind()
+  const isCtrlP = (evt: { name?: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) => {
+    const name = evt.name ?? ""
+    return evt.ctrl && !evt.meta && !evt.shift && (name === "p" || name === "P" || name === "\u0010")
+  }
+  const openPalette = () => {
+    dialog.setSize("palette")
+    dialog.replace(() => <DialogCommand options={value.options} />)
+  }
 
   useKeyboard((evt) => {
-    if (value.suspended()) return
-    if (dialog.stack.length > 0) return
-    if (evt.defaultPrevented) return
-
-    // Direct check for Ctrl+P - most reliable
-    if (evt.ctrl && !evt.shift && !evt.meta && evt.name === "p") {
+    log.debug("key event", {
+      name: evt.name,
+      ctrl: evt.ctrl,
+      suspended: value.suspended(),
+      dialogStack: dialog.stack.length,
+      prevented: evt.defaultPrevented,
+    })
+    // Direct check for Ctrl+P (accept ASCII ^P fallback) even if already prevented elsewhere
+    if (isCtrlP(evt)) {
+      log.debug("MATCHED ctrl+p, opening palette")
       evt.preventDefault()
-      dialog.replace(() => <DialogCommand options={value.options} />)
+      openPalette()
       return
     }
 
+    if (evt.defaultPrevented) return
+    if (value.suspended()) return
+
     // Also check via keybind system for <leader>p
     if (keybind.match("command_list", evt)) {
+      log.debug("MATCHED command_list keybind")
       evt.preventDefault()
-      dialog.replace(() => <DialogCommand options={value.options} />)
+      openPalette()
       return
     }
   })

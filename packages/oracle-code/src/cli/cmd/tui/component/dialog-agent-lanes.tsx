@@ -40,15 +40,12 @@ export function DialogAgentLanes() {
     {
       mode: "vim-navigation",
       priority: 100,
-      onKey: (evt) => {
-        handleKeyboard(evt)
-        return true
-      },
+      onKey: (evt) => handleKeyboard(evt),
     },
     keyboard,
   )
 
-  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }) {
+  function handleKeyboard(evt: { name: string; ctrl?: boolean; shift?: boolean }): boolean {
     const lanes = agentLanes()
 
     switch (evt.name) {
@@ -59,21 +56,21 @@ export function DialogAgentLanes() {
         } else {
           dialog.clear()
         }
-        break
+        return true
 
       case "j":
       case "down":
         if (lanes.length > 0) {
           setSelectedLane((i) => Math.min(i + 1, lanes.length - 1))
         }
-        break
+        return true
 
       case "k":
       case "up":
         if (lanes.length > 0) {
           setSelectedLane((i) => Math.max(i - 1, 0))
         }
-        break
+        return true
 
       case "l":
       case "right":
@@ -81,19 +78,21 @@ export function DialogAgentLanes() {
         if (lanes.length > 0 && viewMode() === "lanes") {
           setViewMode("detail")
         }
-        break
+        return true
 
       case "h":
       case "left":
         if (viewMode() === "detail") {
           setViewMode("lanes")
         }
-        break
+        return true
 
       case "r":
         agents.refresh()
-        break
+        return true
     }
+
+    return false
   }
 
   // Build agent lanes from session data
