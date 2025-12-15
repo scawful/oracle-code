@@ -4,8 +4,20 @@ import { batch, createMemo } from "solid-js"
 
 /**
  * Analysis modes for enhanced agent collaboration insights
+ *
+ * Local modes work without backend, backend modes support persistence via halext sync
  */
-export type AnalysisMode = "none" | "eval" | "tom" | "metrics" | "critic" | "emotional"
+export type AnalysisMode =
+  | "none"
+  | "eval"
+  | "tom"
+  | "metrics"
+  | "critic"
+  | "emotional"
+  | "review" // Code review mode
+  | "documentation" // Documentation quality check
+  | "security" // Security vulnerability scan
+  | "performance" // Performance analysis
 
 export interface AnalysisModeInfo {
   id: AnalysisMode
@@ -57,6 +69,34 @@ export const ANALYSIS_MODES: AnalysisModeInfo[] = [
     shortName: "EMO",
     description: "Track emotional state, fears, satisfactions, and mood",
     color: "info",
+  },
+  {
+    id: "review",
+    name: "Code Review",
+    shortName: "REV",
+    description: "Automated code review with actionable suggestions",
+    color: "info",
+  },
+  {
+    id: "documentation",
+    name: "Documentation",
+    shortName: "DOC",
+    description: "Check documentation coverage and quality",
+    color: "success",
+  },
+  {
+    id: "security",
+    name: "Security",
+    shortName: "SEC",
+    description: "Scan for security vulnerabilities and best practices",
+    color: "error",
+  },
+  {
+    id: "performance",
+    name: "Performance",
+    shortName: "PERF",
+    description: "Analyze performance bottlenecks and optimization opportunities",
+    color: "warning",
   },
 ]
 
@@ -140,8 +180,8 @@ export const { use: useAnalysisMode, provider: AnalysisModeProvider } = createSi
       },
     })
 
-    const currentModeInfo = createMemo(() =>
-      ANALYSIS_MODES.find((m) => m.id === store.currentMode) || ANALYSIS_MODES[0]
+    const currentModeInfo = createMemo(
+      () => ANALYSIS_MODES.find((m) => m.id === store.currentMode) || ANALYSIS_MODES[0],
     )
 
     const isActive = createMemo(() => store.currentMode !== "none")
