@@ -47,6 +47,13 @@ describe("ide", () => {
     expect(Ide.ide()).toBe("Windsurf")
   })
 
+  test("should detect Antigravity", () => {
+    process.env["TERM_PROGRAM"] = "vscode"
+    process.env["GIT_ASKPASS"] = "/path/to/Antigravity.app/Contents/Resources/app/extensions/git/dist/askpass.sh"
+
+    expect(Ide.ide()).toBe("Antigravity")
+  })
+
   test("should return unknown when TERM_PROGRAM is not vscode", () => {
     process.env["TERM_PROGRAM"] = "iTerm2"
     process.env["GIT_ASKPASS"] =

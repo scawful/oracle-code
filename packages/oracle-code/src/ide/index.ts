@@ -6,6 +6,7 @@ import { NamedError } from "@oracle-code/util/error"
 import { Log } from "../util/log"
 
 const SUPPORTED_IDES = [
+  { name: "Antigravity" as const, cmd: "antigravity" },
   { name: "Windsurf" as const, cmd: "windsurf" },
   { name: "Visual Studio Code - Insiders" as const, cmd: "code-insiders" },
   { name: "Visual Studio Code" as const, cmd: "code" },

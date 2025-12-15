@@ -65,11 +65,8 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         const leaderBindings = keybinds().leader ?? []
         const parsed = result.parse(evt)
         const normalized = { ...parsed, leader: false }
-        const aliasNames = normalized.name === " "
-          ? [" ", "space"]
-          : normalized.name === "space"
-            ? ["space", " "]
-            : [normalized.name]
+        const aliasNames =
+          normalized.name === " " ? [" ", "space"] : normalized.name === "space" ? ["space", " "] : [normalized.name]
 
         const isLeaderKey = leaderBindings.some((binding) =>
           aliasNames.some((name) => Keybind.match(binding, { ...normalized, name })),
@@ -96,11 +93,8 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         if (leaderBindings.length > 0) {
           const parsed = result.parse(evt)
           const normalized = { ...parsed, leader: false }
-          const aliasNames = normalized.name === " "
-            ? [" ", "space"]
-            : normalized.name === "space"
-              ? ["space", " "]
-              : [normalized.name]
+          const aliasNames =
+            normalized.name === " " ? [" ", "space"] : normalized.name === "space" ? ["space", " "] : [normalized.name]
 
           const isLeaderAgain = leaderBindings.some((binding) =>
             aliasNames.some((name) => Keybind.match(binding, { ...normalized, name })),
@@ -154,12 +148,13 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
             leader: false,
             meta: false,
           }
+        // Ensure boolean coercion - evt properties may be undefined
         return {
-          ctrl: evt.ctrl,
-          name: evt.name,
-          shift: evt.shift,
+          ctrl: !!evt.ctrl,
+          name: evt.name ?? "",
+          shift: !!evt.shift,
           leader: store.leader,
-          meta: evt.meta,
+          meta: !!evt.meta,
         }
       },
       match(key: keyof KeybindsConfig, evt: ParsedKey) {
