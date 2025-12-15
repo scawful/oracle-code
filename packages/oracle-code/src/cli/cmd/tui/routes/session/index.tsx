@@ -54,7 +54,7 @@ import { DialogConfirm } from "@tui/ui/dialog-confirm"
 import { DialogPrompt } from "@tui/ui/dialog-prompt"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
-import { Sidebar } from "./sidebar"
+import { Sidebar, LeftSidebar } from "./sidebar"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { usePanes, type PaneNode, type PaneLeaf, type SplitDirection } from "@tui/context/panes"
 import { PaneView, FloatingPaneOverlay } from "@tui/component/pane-view"
@@ -67,6 +67,7 @@ import { Editor } from "../../util/editor"
 import stripAnsi from "strip-ansi"
 import { Footer } from "./footer.tsx"
 import { usePromptRef } from "../../context/prompt"
+import { SubagentTabBar } from "../../component/subagent-tab-bar"
 
 addDefaultParsers(parsers.parsers)
 
@@ -152,11 +153,7 @@ function SecondaryPaneArea(props: { sessionID: string }) {
     return extractSecondary(root)
   })
 
-  return (
-    <Show when={secondaryRoot()}>
-      {(root) => <PaneTreeRenderer node={root()} sessionID={props.sessionID} />}
-    </Show>
-  )
+  return <Show when={secondaryRoot()}>{(root) => <PaneTreeRenderer node={root()} sessionID={props.sessionID} />}</Show>
 }
 
 class CustomSpeedScroll implements ScrollAcceleration {
@@ -193,6 +190,8 @@ export function Session() {
   const kv = useKV()
   const { theme } = useTheme()
   const promptRef = usePromptRef()
+  const panes = usePanes()
+  const local = useLocal()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
   const permissions = createMemo(() => sync.data.permission[route.sessionID] ?? [])
@@ -206,7 +205,6 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = createSignal<"show" | "hide" | "auto">(kv.get("sidebar", "auto"))
   const [conceal, setConceal] = createSignal(true)
   const [showThinking, setShowThinking] = createSignal(kv.get("thinking_visibility", true))
   const [showTimestamps, setShowTimestamps] = createSignal(kv.get("timestamps", "hide") === "show")
@@ -215,14 +213,24 @@ export function Session() {
   const [showScrollbar, setShowScrollbar] = createSignal(kv.get("scrollbar_visible", false))
   const [diffWrapMode, setDiffWrapMode] = createSignal<"word" | "none">("word")
 
-  const wide = createMemo(() => dimensions().width > 120)
+  // Sidebar visibility from panes context
   const sidebarVisible = createMemo(() => {
+    // Never show sidebar for child sessions (subagents)
     if (session()?.parentID) return false
-    if (sidebar() === "show") return true
-    if (sidebar() === "auto" && wide()) return true
-    return false
+    // Use panes context for visibility
+    return panes.rightSidebar.visible
   })
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  // Left sidebar support (for future use)
+  const leftSidebarVisible = createMemo(() => {
+    if (session()?.parentID) return false
+    return panes.leftSidebar.visible
+  })
+  const contentWidth = createMemo(() => {
+    let width = dimensions().width - 4
+    if (sidebarVisible()) width -= panes.rightSidebar.width
+    if (leftSidebarVisible()) width -= panes.leftSidebar.width
+    return width
+  })
 
   const scrollAcceleration = createMemo(() => {
     const tui = sync.data.config.tui
@@ -310,9 +318,6 @@ export function Session() {
     }, 50)
   }
 
-  const local = useLocal()
-  const panes = usePanes()
-
   const syncPromptFocus = () => {
     if (!prompt) return
     if (dialog.stack.length > 0 || keybind.leader) {
@@ -360,39 +365,31 @@ export function Session() {
     function findMainSplit(
       node: PaneNode,
       parentDirection: SplitDirection | null,
-      cumulativeRatio: number
+      cumulativeRatio: number,
     ): { direction: SplitDirection; mainRatio: number } | null {
       if (node.type === "leaf") return null
-      
+
       const firstIsMain = node.first.type === "leaf" && node.first.id === "main"
       const secondIsMain = node.second.type === "leaf" && node.second.id === "main"
-      
+
       if (firstIsMain) {
         // Main is in first position - it gets node.ratio of this split
         const effectiveRatio = cumulativeRatio * node.ratio
         return { direction: node.direction, mainRatio: effectiveRatio }
       }
-      
+
       if (secondIsMain) {
         // Main is in second position - it gets (1 - node.ratio) of this split
         const effectiveRatio = cumulativeRatio * (1 - node.ratio)
         return { direction: node.direction, mainRatio: effectiveRatio }
       }
-      
+
       // Main might be nested deeper - search children
       // When descending, multiply the cumulative ratio by this split's portion
-      const firstResult = findMainSplit(
-        node.first,
-        node.direction,
-        cumulativeRatio * node.ratio
-      )
+      const firstResult = findMainSplit(node.first, node.direction, cumulativeRatio * node.ratio)
       if (firstResult) return firstResult
-      
-      const secondResult = findMainSplit(
-        node.second,
-        node.direction,
-        cumulativeRatio * (1 - node.ratio)
-      )
+
+      const secondResult = findMainSplit(node.second, node.direction, cumulativeRatio * (1 - node.ratio))
       return secondResult
     }
 
@@ -590,13 +587,7 @@ export function Session() {
       keybind: "sidebar_toggle",
       category: "Session",
       onSelect: (dialog) => {
-        setSidebar((prev) => {
-          if (prev === "auto") return sidebarVisible() ? "hide" : "show"
-          if (prev === "show") return "hide"
-          return "show"
-        })
-        if (sidebar() === "show") kv.set("sidebar", "auto")
-        if (sidebar() === "hide") kv.set("sidebar", "hide")
+        panes.toggleSidebar("right")
         dialog.clear()
       },
     },
@@ -1025,6 +1016,10 @@ export function Session() {
     >
       <box position="relative" flexGrow={1}>
         <box flexDirection="row" flexGrow={1} height="100%" overflow="hidden">
+          {/* Left Sidebar */}
+          <Show when={leftSidebarVisible()}>
+            <LeftSidebar sessionID={route.sessionID} />
+          </Show>
           <box
             flexGrow={1}
             flexDirection={hasSecondaryPanes() ? (mainSplitDirection() === "horizontal" ? "column" : "row") : "row"}
@@ -1047,6 +1042,7 @@ export function Session() {
                 <Show when={!sidebarVisible()}>
                   <Header />
                 </Show>
+                <SubagentTabBar sessionId={route.sessionID} />
                 <scrollbox
                   ref={(r) => (scroll = r)}
                   verticalScrollbarOptions={{
