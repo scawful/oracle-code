@@ -62,7 +62,10 @@ export function Footer() {
             <Show when={permissions().length > 0}>
               <text fg={theme.warning}>
                 <span style={{ fg: theme.warning }}>◉</span> {permissions().length} Permission
-                {permissions().length > 1 ? "s" : ""}
+                {permissions().length > 1 ? "s" : ""}{" "}
+                <span style={{ fg: theme.text }}>
+                  [<b>enter</b> accept | <b>a</b> always | <b>d</b> deny]
+                </span>
               </text>
             </Show>
             <text fg={theme.text}>

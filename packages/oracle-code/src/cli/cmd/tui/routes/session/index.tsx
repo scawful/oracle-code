@@ -349,6 +349,29 @@ export function Session() {
   const keybind = useKeybind()
 
   useKeyboard((evt) => {
+    // PRIORITY: Permission handling - works even when sidebar/other panes are active
+    // Only skip if a dialog modal is open
+    const first = permissions()[0]
+    if (first && dialog.stack.length === 0) {
+      const response = iife(() => {
+        if (evt.ctrl || evt.meta) return
+        if (evt.name === "return") return "once"
+        if (evt.name === "a") return "always"
+        if (evt.name === "d") return "reject"
+        if (evt.name === "escape") return "reject"
+        return
+      })
+      if (response) {
+        evt.preventDefault()
+        sdk.client.permission.respond({
+          permissionID: first.id,
+          sessionID: route.sessionID,
+          response: response,
+        })
+        return
+      }
+    }
+
     if (dialog.stack.length > 0) return
 
     // Ctrl+C: Clear input if there's content, otherwise handled by app_exit
@@ -359,25 +382,6 @@ export function Session() {
         prompt.reset()
         evt.preventDefault()
         return
-      }
-    }
-
-    const first = permissions()[0]
-    if (first) {
-      const response = iife(() => {
-        if (evt.ctrl || evt.meta) return
-        if (evt.name === "return") return "once"
-        if (evt.name === "a") return "always"
-        if (evt.name === "d") return "reject"
-        if (evt.name === "escape") return "reject"
-        return
-      })
-      if (response) {
-        sdk.client.permission.respond({
-          permissionID: first.id,
-          sessionID: route.sessionID,
-          response: response,
-        })
       }
     }
   })
