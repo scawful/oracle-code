@@ -351,6 +351,17 @@ export function Session() {
   useKeyboard((evt) => {
     if (dialog.stack.length > 0) return
 
+    // Ctrl+C: Clear input if there's content, otherwise handled by app_exit
+    if (evt.ctrl && evt.name === "c" && prompt) {
+      const current = prompt.current
+      const hasContent = (current?.input?.length ?? 0) > 0 || (current?.parts?.length ?? 0) > 0
+      if (hasContent) {
+        prompt.reset()
+        evt.preventDefault()
+        return
+      }
+    }
+
     const first = permissions()[0]
     if (first) {
       const response = iife(() => {

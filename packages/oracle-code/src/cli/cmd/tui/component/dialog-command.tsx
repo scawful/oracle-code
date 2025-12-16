@@ -8,6 +8,7 @@ import {
   useContext,
   type Accessor,
   type ParentProps,
+  Show,
 } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { useKeybind } from "@tui/context/keybind"
@@ -15,6 +16,7 @@ import { useWhichKey, type WhichKeyNode } from "@tui/context/which-key"
 import { useApprovalMode } from "@tui/context/approval-mode"
 import type { KeybindsConfig } from "@oracle-code/sdk/v2"
 import { Log } from "@/util/log"
+import { CommandPaletteBar } from "./command-palette-bar"
 
 const log = Log.create({ service: "dialog-command" })
 
@@ -29,6 +31,7 @@ export type CommandOption = DialogSelectOption & {
 function init() {
   const [registrations, setRegistrations] = createSignal<Accessor<CommandOption[]>[]>([])
   const [suspendCount, setSuspendCount] = createSignal(0)
+  const [barVisible, setBarVisible] = createSignal(false)
   const dialog = useDialog()
   const keybind = useKeybind()
   const whichKey = useWhichKey()
@@ -133,8 +136,13 @@ function init() {
     },
     suspended,
     show() {
-      dialog.setSize("palette")
-      dialog.replace(() => <DialogCommand options={options()} />)
+      setBarVisible(true)
+    },
+    hide() {
+      setBarVisible(false)
+    },
+    get barVisible() {
+      return barVisible()
     },
     register(cb: () => CommandOption[]) {
       const results = createMemo(cb)
@@ -166,10 +174,6 @@ export function CommandProvider(props: ParentProps) {
     const name = evt.name ?? ""
     return evt.ctrl && !evt.meta && !evt.shift && (name === "p" || name === "P" || name === "\u0010")
   }
-  const openPalette = () => {
-    dialog.setSize("palette")
-    dialog.replace(() => <DialogCommand options={value.options} />)
-  }
 
   useKeyboard((evt) => {
     log.debug("key event", {
@@ -183,7 +187,7 @@ export function CommandProvider(props: ParentProps) {
     if (isCtrlP(evt)) {
       log.debug("MATCHED ctrl+p, opening palette")
       evt.preventDefault()
-      openPalette()
+      value.show()
       return
     }
 
@@ -194,7 +198,7 @@ export function CommandProvider(props: ParentProps) {
     if (keybind.match("command_list", evt)) {
       log.debug("MATCHED command_list keybind")
       evt.preventDefault()
-      openPalette()
+      value.show()
       return
     }
   })
@@ -210,5 +214,29 @@ function DialogCommand(props: { options: CommandOption[] }) {
       title="Commands"
       options={props.options.filter((x) => !ref?.filter || !x.value.startsWith("suggested."))}
     />
+  )
+}
+
+/**
+ * CommandPaletteBarContainer - Renders the command palette bar when active
+ * Place this component in the App component alongside WhichKeyBar
+ */
+export function CommandPaletteBarContainer() {
+  const command = useCommandDialog()
+  const dialog = useDialog()
+
+  const handleSelect = (option: CommandOption) => {
+    command.hide()
+    option.onSelect?.(dialog)
+  }
+
+  const handleClose = () => {
+    command.hide()
+  }
+
+  return (
+    <Show when={command.barVisible}>
+      <CommandPaletteBar options={command.options} onSelect={handleSelect} onClose={handleClose} />
+    </Show>
   )
 }

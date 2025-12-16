@@ -16,7 +16,7 @@ import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
-import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
+import { CommandProvider, useCommandDialog, CommandPaletteBarContainer } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
 import { DialogSessionList } from "@tui/component/dialog-session-list"
 import { KeybindProvider, useKeybind } from "@tui/context/keybind"
@@ -1078,6 +1078,8 @@ function App() {
       <LaneSplitViewController />
       {/* Which-key bottom bar */}
       <WhichKeyBar />
+      {/* Command palette bar */}
+      <CommandPaletteBarContainer />
     </box>
   )
 }
