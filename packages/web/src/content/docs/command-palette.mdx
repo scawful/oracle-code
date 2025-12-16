@@ -1,0 +1,193 @@
+---
+title: Command Palette
+description: Quick access to all commands from the keyboard.
+---
+
+The command palette provides quick access to all available commands. It appears as a searchable bar at the bottom of the screen, inspired by Emacs helm/ivy.
+
+---
+
+## Open the palette
+
+Press `Ctrl+P` or use the leader key sequence `<leader>p` to open the command palette.
+
+```bash frame="none"
+ctrl+p
+```
+
+The palette shows a search input and grid of available commands.
+
+---
+
+## Navigate commands
+
+Use these keys to navigate the command list:
+
+| Key              | Action                   |
+| ---------------- | ------------------------ |
+| `Up` / `Down`    | Move selection           |
+| `Left` / `Right` | Move selection           |
+| `Tab`            | Move to next command     |
+| `Ctrl+N`         | Move to next command     |
+| `Ctrl+P`         | Move to previous command |
+| `Enter`          | Execute selected command |
+| `Escape`         | Close palette            |
+
+---
+
+## Search commands
+
+Type in the search field to filter commands. The palette searches by:
+
+- Command title
+- Category name
+- Command value/identifier
+
+Commands matching at the start of the title appear first.
+
+---
+
+## Categories
+
+Commands are organized into categories and sorted by priority:
+
+1. **Session** - Session management commands
+2. **Agent** - Agent and model switching
+3. **Buffer** - Buffer management
+4. **System** - App settings and utilities
+5. **Provider** - LLM provider configuration
+6. **Workspace** - Workspace save/load
+7. **AFS** - Agentic File System browser
+
+---
+
+## Keybind hints
+
+When a command is selected, its keybind appears in brackets. This helps you learn keyboard shortcuts for frequently used commands.
+
+```
+→ Switch model [ctrl+x m]
+```
+
+---
+
+## Architecture
+
+The command palette consists of three main components:
+
+### CommandProvider
+
+The context provider that manages command registration and palette state. Components register commands using the `register` method.
+
+```tsx
+const command = useCommandDialog()
+
+command.register(() => [
+  {
+    title: "My Command",
+    value: "my.command",
+    category: "Custom",
+    keybind: "custom_keybind",
+    onSelect: (dialog) => {
+      // Handle command execution
+      dialog.clear()
+    },
+  },
+])
+```
+
+### CommandPaletteBar
+
+The bottom bar component that renders the search interface and command grid. It handles:
+
+- Filtering and sorting commands
+- Keyboard navigation
+- Command selection
+
+### CommandPaletteBarContainer
+
+A wrapper component that conditionally renders the bar based on visibility state. Place this in your app layout.
+
+```tsx
+<CommandPaletteBarContainer />
+```
+
+---
+
+## Register commands
+
+Components can register commands dynamically using the `useCommandDialog` hook.
+
+```tsx
+import { useCommandDialog } from "@tui/component/dialog-command"
+
+function MyComponent() {
+  const command = useCommandDialog()
+
+  command.register(() => [
+    {
+      title: "Do Something",
+      value: "my.action",
+      category: "Custom",
+      suggested: true, // Show in suggested section
+      disabled: false, // Hide when true
+      keybind: "my_keybind", // Optional keybind name
+      onSelect: (dialog) => {
+        performAction()
+        dialog.clear()
+      },
+    },
+  ])
+
+  return <div>...</div>
+}
+```
+
+---
+
+## Command options
+
+Each command option accepts these properties:
+
+| Property    | Type       | Description                                    |
+| ----------- | ---------- | ---------------------------------------------- |
+| `title`     | `string`   | Display name in the palette                    |
+| `value`     | `string`   | Unique identifier for the command              |
+| `category`  | `string`   | Category for grouping and sorting              |
+| `keybind`   | `string`   | Keybind name from config (optional)            |
+| `suggested` | `boolean`  | Show in suggested section (optional)           |
+| `disabled`  | `boolean`  | Hide from palette when true (optional)         |
+| `onSelect`  | `function` | Handler called when command is selected        |
+| `footer`    | `string`   | Additional text shown when selected (optional) |
+
+---
+
+## Trigger commands
+
+You can programmatically trigger commands by their value:
+
+```tsx
+const command = useCommandDialog()
+
+// Trigger a specific command
+command.trigger("session.new")
+
+// Trigger from prompt context
+command.trigger("prompt.editor", "prompt")
+```
+
+---
+
+## Suspend keybinds
+
+When rendering components that need keyboard focus, suspend command keybinds:
+
+```tsx
+const command = useCommandDialog()
+
+// Disable command keybinds
+command.keybinds(false)
+
+// Re-enable command keybinds
+command.keybinds(true)
+```

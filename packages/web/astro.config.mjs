@@ -71,6 +71,7 @@ export default defineConfig({
             "models",
             "themes",
             "keybinds",
+            "command-palette",
             "commands",
             "formatters",
             "permissions",
