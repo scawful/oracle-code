@@ -182,10 +182,33 @@ export namespace HivemindStore {
   // =============
 
   /**
-   * Get the project-level hivemind directory path
+   * Get the project-level hivemind directory path.
+   *
+   * @param contextRoot - Should be the .context directory path (e.g., /project/.context).
+   *                      If a project root is passed instead, this function will auto-correct
+   *                      by appending .context if that directory exists.
    */
   export async function getProjectRoot(contextRoot?: string): Promise<string> {
-    const root = contextRoot || (await AFS.getRoot())
+    let root = contextRoot || (await AFS.getRoot())
+
+    // Validate and fix path if someone passes project root instead of .context path
+    if (root && !root.endsWith(".context")) {
+      const contextPath = path.join(root, ".context")
+      try {
+        const stat = await fs.stat(contextPath)
+        if (stat.isDirectory()) {
+          log.warn("contextRoot should be .context path, not project root", {
+            received: root,
+            corrected: contextPath,
+          })
+          root = contextPath
+        }
+      } catch {
+        // .context doesn't exist at expected location - this is an error state
+        // but we'll let it fail naturally when trying to access the hivemind dir
+      }
+    }
+
     return path.join(root, HIVEMIND_DIR)
   }
 
